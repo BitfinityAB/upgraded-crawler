@@ -3,10 +3,21 @@ using HtmlAgilityPack;
 using UpgradedCrawler;
 
 const string url = "https://upgraded.se/wp-admin/admin-ajax.php";
-const string csvFilePath = "records.csv";
+var csvFilePath = "records.csv";
+var newRecordsFile = "new_records.csv";
 
 try
 {
+    if (!IsWorkingHour())
+    {
+        Log("It's not working hours. The program will exit.");
+        return;
+    }
+    if (args.Length > 0)
+    {
+        csvFilePath = $"{args[0]}/{csvFilePath}";
+        newRecordsFile = $"{args[0]}/{newRecordsFile}";
+    }
     var records = new Dictionary<string, string>();
 
     if (File.Exists(csvFilePath))
@@ -66,12 +77,11 @@ try
 
     if (rows?.Count == 0)
     {
-        Console.WriteLine("No data rows found in the table.");
+        Log("No data rows found in the table.");
         return;
     }
 
     var newRecords = new Dictionary<string, string>();
-    var newRecordsFile = "new_records.csv";
 
     rows?.ToList().ForEach(row =>
     {
@@ -85,7 +95,7 @@ try
 
     if (newRecords.Count == 0)
     {
-        Console.WriteLine("No new records found.");
+        Log("No new records found.");
         return;
     }
     else
@@ -93,23 +103,45 @@ try
         Notification.ShowMacNotification("New assignment(s)", $"{newRecords.Count} new assignment(s) were found on Upgraded's website.");
     }
 
-    static async Task WriteToFile(Dictionary<string, string> records, string csvFilePath)
-    {
-        var csvLines = new List<string> { "id,url" };
-        foreach (var record in records)
-        {
-            // Escape commas in URLs if necessary
-            string escapedUrl = record.Value.Contains(",") ? $"\"{record.Value}\"" : record.Value;
-            csvLines.Add($"{record.Key},{escapedUrl}");
-        }
-        await File.WriteAllLinesAsync(csvFilePath, csvLines);
-        Console.WriteLine($"{records.Count} records written to {csvFilePath}.");
-    }
-
     await WriteToFile(records, csvFilePath);
     await WriteToFile(newRecords, newRecordsFile);
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"An error occurred: {ex.Message}");
+    Log($"An error occurred: {ex.Message}");
+}
+
+/// <summary>
+/// Checks if the current time is within working hours.
+/// </summary>
+static bool IsWorkingHour()
+{
+    var now = DateTime.Now;
+    return now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday && now.Hour >= 9 && now.Hour < 17;
+}
+/// <summary>
+/// Logs a message to the console with a timestamp.
+/// </summary>
+/// <param name="message">The message to log.</param>
+static void Log(string message)
+{
+    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
+}
+
+/// <summary>
+/// Writes records to a CSV file.
+/// </summary>
+/// <param name="records">The records to write.</param>
+/// <param name="csvFilePath">The path to the CSV file.</param>
+static async Task WriteToFile(Dictionary<string, string> records, string csvFilePath)
+{
+    var csvLines = new List<string> { "id,url" };
+    foreach (var record in records)
+    {
+        // Escape commas in URLs if necessary
+        string escapedUrl = record.Value.Contains(",") ? $"\"{record.Value}\"" : record.Value;
+        csvLines.Add($"{record.Key},{escapedUrl}");
+    }
+    await File.WriteAllLinesAsync(csvFilePath, csvLines);
+    Log($"{records.Count} records written to {csvFilePath}.");
 }
