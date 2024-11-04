@@ -5,6 +5,6 @@ Simple .NET console app for monitoring the assignments on Upgraded People's webs
 ## Usage
 
 1. Compile the app using `dotnet build` command.
-2. Add to you crontab by running `crontab -e` and making necessary changes. Google for information on how to schedule a console app to run on macOS.
+2. Read [here](https://alvinalexander.com/mac-os-x/mac-osx-startup-crontab-launchd-jobs/) about creating plist files for `launchctl`. Create a file in the location suitable for you.
 
 Recommended to run the script every hour at most frequest to avoid being blacklisted from the service.

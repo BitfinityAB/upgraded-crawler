@@ -1,8 +1,10 @@
 ﻿using System.Text.Json;
 using HtmlAgilityPack;
 using UpgradedCrawler;
+using System.Text.RegularExpressions;
 
-const string url = "https://upgraded.se/wp-admin/admin-ajax.php";
+const string websiteUrl = "https://upgraded.se/lediga-uppdrag/";
+const string adminUrl = "https://upgraded.se/wp-admin/admin-ajax.php";
 var csvFilePath = "records.csv";
 var newRecordsFile = "new_records.csv";
 
@@ -41,6 +43,12 @@ try
         }
         return records;
     }
+    var nonce = await GetNonce();
+    if (string.IsNullOrEmpty(nonce))
+    {
+        Log("Nonce not found. The program will exit.");
+        return;
+    }
 
     using var httpClient = new HttpClient();
 
@@ -51,14 +59,14 @@ try
     var formData = new FormUrlEncodedContent(
     [
         new KeyValuePair<string, string>("action", "do_filter_posts"),
-        new KeyValuePair<string, string>("nonce", "29a3b01dc3"),
+        new KeyValuePair<string, string>("nonce", $"{nonce}"),
         new KeyValuePair<string, string>("params[ort-term]", "alla-orter"),
         new KeyValuePair<string, string>("params[roll-term]", "alla-roller"),
         new KeyValuePair<string, string>("params[kund-term]", "alla-kunder")
     ]);
 
     // Send the POST request
-    var response = await httpClient.PostAsync(url, formData);
+    var response = await httpClient.PostAsync(adminUrl, formData);
     response.EnsureSuccessStatusCode();
 
     // Read the response as a string
@@ -72,7 +80,7 @@ try
     var htmlDoc = new HtmlDocument();
     htmlDoc.LoadHtml(htmlContent);
 
-    // Extract and display table data //*[@id="container-async"]/div[2]/table/tbody/tr[2]/td[5]
+    // Extract and display table data
     var rows = htmlDoc.DocumentNode.SelectNodes("//table/tr[position()>1]");
 
     if (rows?.Count == 0)
@@ -117,7 +125,7 @@ catch (Exception ex)
 static bool IsWorkingHour()
 {
     var now = DateTime.Now;
-    return now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday && now.Hour >= 9 && now.Hour < 17;
+    return now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday && now.Hour >= 8 && now.Hour < 17;
 }
 /// <summary>
 /// Logs a message to the console with a timestamp.
@@ -144,4 +152,30 @@ static async Task WriteToFile(Dictionary<string, string> records, string csvFile
     }
     await File.WriteAllLinesAsync(csvFilePath, csvLines);
     Log($"{records.Count} records written to {csvFilePath}.");
+}
+
+/// <summary>
+/// Gets nonce from the website.
+/// </summary>
+static async Task<string> GetNonce()
+{
+    using var httpClient = new HttpClient();
+    var response = await httpClient.GetAsync(websiteUrl);
+    response.EnsureSuccessStatusCode();
+
+    var content = await response.Content.ReadAsStringAsync();
+
+    // Define a regex pattern to match the nonce value
+    var noncePattern = @"var\s+bobz\s*=\s*\{\s*""nonce""\s*:\s*""(?<nonce>\w+)""";
+    var match = Regex.Match(content, noncePattern);
+
+    if (match.Success && match.Groups["nonce"].Success)
+    {
+        return match.Groups["nonce"].Value;
+    }
+    else
+    {
+        Log("Nonce not found in the response.");
+        return string.Empty;
+    }
 }
