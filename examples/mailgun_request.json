@@ -1,0 +1,13 @@
+{
+    "multipleAssignments": false,
+    "assignments": [
+        {
+            "id": "81781",
+            "url": "https://upgraded.se/konsultuppdrag/81781-data-engineer-informatica-3/"
+        },
+        {
+            "id": "bar",
+            "url": "https://api.mailgun.net/v3/sandbox.mailgun.org/messages"
+        }
+    ]
+}

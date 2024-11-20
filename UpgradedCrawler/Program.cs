@@ -2,6 +2,9 @@
 using HtmlAgilityPack;
 using UpgradedCrawler;
 using System.Text.RegularExpressions;
+using UpgradedCrawler.Core.Entities;
+using Microsoft.Extensions.Configuration;
+using UpgradedCrawler.Service;
 
 const string websiteUrl = "https://upgraded.se/lediga-uppdrag/";
 const string adminUrl = "https://upgraded.se/wp-admin/admin-ajax.php";
@@ -10,6 +13,13 @@ var newRecordsFile = "new_records.csv";
 
 try
 {
+    var configuration = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("appsettings.json", optional: false)
+        .Build();
+    var mailgunOptions = configuration.GetSection("mailgun").Get<MailgunOptions>();
+    var emailService = new MailgunService(mailgunOptions);
+
     if (!IsWorkingHour())
     {
         Log("It's not working hours. The program will exit.");
@@ -108,7 +118,8 @@ try
     }
     else
     {
-        Notification.ShowMacNotification("New assignment(s)", $"{newRecords.Count} new assignment(s) were found on Upgraded's website.");
+        var suffix = newRecords.Count == 1 ? "" : "s";
+        await emailService.SendEmail("aziz.khakulov@bitfinity.dev", $"New Assignment Announcement{suffix} on Upgraded People", GetAssignmentAnnouncements(newRecords));
     }
 
     await WriteToFile(records, csvFilePath);
@@ -178,4 +189,14 @@ static async Task<string> GetNonce()
         Log("Nonce not found in the response.");
         return string.Empty;
     }
+}
+
+/// <summary>
+/// Converts a dictionary of records to a list of AssignmentAnnouncement objects.
+/// </summary>
+/// <param name="records">The dictionary of records to convert.</param>
+/// <returns>A list of AssignmentAnnouncement objects.</returns>
+static List<AssignmentAnnouncement> GetAssignmentAnnouncements(Dictionary<string, string> records)
+{
+    return records.Select(r => new AssignmentAnnouncement(r.Key, r.Value)).ToList();
 }

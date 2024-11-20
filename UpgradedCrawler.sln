@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UpgradedCrawler", "UpgradedCrawler\UpgradedCrawler.csproj", "{E2BEDA33-E8A7-4492-B40C-C290505D7D3A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UpgradedCrawler.Core", "UpgradedCrawler.Core\UpgradedCrawler.Core.csproj", "{110194D1-0ED9-4D98-A1A3-9AD2825B9DF7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{E2BEDA33-E8A7-4492-B40C-C290505D7D3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E2BEDA33-E8A7-4492-B40C-C290505D7D3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E2BEDA33-E8A7-4492-B40C-C290505D7D3A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{110194D1-0ED9-4D98-A1A3-9AD2825B9DF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{110194D1-0ED9-4D98-A1A3-9AD2825B9DF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{110194D1-0ED9-4D98-A1A3-9AD2825B9DF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{110194D1-0ED9-4D98-A1A3-9AD2825B9DF7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
