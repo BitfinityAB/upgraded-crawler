@@ -4,6 +4,6 @@ namespace UpgradedCrawler.Core.Interfaces
 {
     public interface IEmailService
     {
-        Task SendEmail(string to, string subject, List<AssignmentAnnouncement> assignments);
+        Task SendEmail(string to, string subject, ICollection<AssignmentAnnouncement> assignments);
     }
 }

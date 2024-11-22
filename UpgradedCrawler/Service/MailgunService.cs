@@ -1,17 +1,18 @@
 using FluentAssertions;
 using Mailgun.Messages;
 using Mailgun.Service;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Extensions;
 using UpgradedCrawler.Core.Interfaces;
 namespace UpgradedCrawler.Service;
 
-public class MailgunService(MailgunOptions mailgunOptions) : IEmailService
+public class MailgunService(IOptions<MailgunOptions> mailgunOptions) : IEmailService
 {
-    private readonly MailgunOptions mailgunOptions = mailgunOptions;
+    private readonly MailgunOptions mailgunOptions = mailgunOptions.Value;
 
-    public async Task SendEmail(string to, string subject, List<AssignmentAnnouncement> assignments)
+    public async Task SendEmail(string to, string subject, ICollection<AssignmentAnnouncement> assignments)
     {
         var mg = new MessageService(mailgunOptions.ApiKey, null, "api.eu.mailgun.net/v3");
 
@@ -29,7 +30,7 @@ public class MailgunService(MailgunOptions mailgunOptions) : IEmailService
         content.Should().NotBeNull();
     }
 
-    private static MailgunTemplateData GetMailgunTemplateData(List<AssignmentAnnouncement> assignments)
+    private static MailgunTemplateData GetMailgunTemplateData(ICollection<AssignmentAnnouncement> assignments)
     {
         var data = new MailgunTemplateData
         {
