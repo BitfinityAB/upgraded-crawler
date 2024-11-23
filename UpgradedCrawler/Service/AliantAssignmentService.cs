@@ -20,7 +20,7 @@ namespace UpgradedCrawler.Service
         {
             var httpClient = _httpClientFactory.CreateClient();
             var newAssignments = new List<AssignmentAnnouncement>();
-            var response = await httpClient.GetAsync($"{baseUrl}//index.php");
+            var response = await httpClient.GetAsync($"{baseUrl}/index.php");
             response.EnsureSuccessStatusCode();
             var responseString = await response.Content.ReadAsStringAsync();
 
