@@ -66,7 +66,7 @@ namespace UpgradedCrawler.Service
             {
                 var url = row.SelectSingleNode("td[1]/a")?.GetAttributeValue("href", "") ?? "";
                 var id = row.SelectSingleNode("td[5]").InnerText.Trim();
-                if (!dbContext.Assignments.Any(r => r.Id != id && r.ProviderId == providerId))
+                if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
                 {
                     newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, DateTime.Now));
                 }
