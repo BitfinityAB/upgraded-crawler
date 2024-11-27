@@ -45,9 +45,10 @@ namespace UpgradedCrawler.Service
                 if (string.IsNullOrEmpty(id)) continue;
 
                 var url = $"{baseUrl}/job.php?job_id={id}";
+                var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
                 if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
                 {
-                    newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, DateTime.Now));
+                    newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
                 }
             }
 
