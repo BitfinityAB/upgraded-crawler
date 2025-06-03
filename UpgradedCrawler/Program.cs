@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Interfaces;
+using Microsoft.Extensions.Configuration;
 
 try
 {
@@ -14,6 +15,15 @@ try
         return;
     }
     var host = Host.CreateDefaultBuilder(args)
+           .ConfigureAppConfiguration((hostingContext, config) =>
+           {
+               // Add local settings file if it exists
+               var localSettings = "appsettings.local.json";
+               if (File.Exists(localSettings))
+               {
+                   config.AddJsonFile(localSettings, optional: true, reloadOnChange: true);
+               }
+           })
            .ConfigureServices((context, services) =>
            {
                // Register keyed services
@@ -50,9 +60,10 @@ try
     else
     {
         var suffix = newAssignments.Count == 1 ? "" : "s";
-        await emailService.SendEmail("aziz.khakulov@bitfinity.dev", $"New Assignment Announcement{suffix} on Upgraded People", newAssignments);
+        var mailgunOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<MailgunOptions>>().Value;
+        await emailService.SendEmail(mailgunOptions.To, $"New Assignment Announcement{suffix} on Upgraded People", newAssignments);
         Logging.Log($"Successfully sent email notification for {newAssignments.Count} new record{suffix}.");
-    }
+     }
 }
 catch (Exception ex)
 {

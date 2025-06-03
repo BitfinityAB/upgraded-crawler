@@ -64,9 +64,9 @@ namespace UpgradedCrawler.Service
 
             rows?.ToList().ForEach(row =>
             {
-                var url = row.SelectSingleNode("td[1]/a")?.GetAttributeValue("href", "") ?? "";
-                var title = row.SelectSingleNode("td[1]/a/h5")?.InnerText.Trim() ?? "";
-                var id = row.SelectSingleNode("td[5]").InnerText.Trim();
+                var url = row.SelectSingleNode("td[1]/div[1]/div/div[1]/a")?.GetAttributeValue("href", "") ?? "";
+                var title = row.SelectSingleNode("td[1]/div[2]/h5")?.InnerText.Trim() ?? "";
+                var id = row.SelectSingleNode("td[1]/div[1]/div/div[2]/span[1]").InnerText.Trim();
                 if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
                 {
                     newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));

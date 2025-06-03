@@ -5,4 +5,5 @@ public record MailgunOptions
     public required string ApiKey { get; set; }
     public required string Domain { get; set; }
     public required string TemplateName { get; set; }
+    public required string To { get; set; }
 }
