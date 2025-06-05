@@ -8,12 +8,14 @@ using UpgradedCrawler.Core.Interfaces;
 using Microsoft.Extensions.Configuration;
 
 var forceRun = args.Contains("-f") || args.Contains("--force");
+var logToEventLog = args.Contains("-e") || args.Contains("--eventlog");
+var logger = new Logging(logToEventLog);
 
 try
 {
     if (!forceRun && !IsWorkingHour())
     {
-        Logging.Log("It's not working hours. The program will exit.");
+        logger.Log("It's not working hours. The program will exit.");
         return;
     }
     var host = Host.CreateDefaultBuilder(args)
@@ -31,6 +33,7 @@ try
                // Register keyed services
                services.AddKeyedScoped<IAssignmentService, UpgradedAssignmentService>("upgraded");
                services.AddKeyedScoped<IAssignmentService, AliantAssignmentService>("aliant");
+               services.AddScoped<ILogging>(_ => new Logging(logToEventLog));
                services.AddScoped<IEmailService, MailgunService>();
                services.AddDbContext<AppDbContext>();
 
@@ -42,7 +45,7 @@ try
            })
            .Build();
 
-    // Get service and run    
+    // Get service and run
     var emailService = host.Services.GetRequiredService<IEmailService>();
     var db = host.Services.GetRequiredService<AppDbContext>();
     await db.Database.EnsureCreatedAsync();
@@ -56,7 +59,7 @@ try
 
     if (newAssignments.Count == 0)
     {
-        Logging.Log("No new records found.");
+        logger.Log("No new records found.");
         return;
     }
     else
@@ -64,12 +67,12 @@ try
         var suffix = newAssignments.Count == 1 ? "" : "s";
         var mailgunOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<MailgunOptions>>().Value;
         await emailService.SendEmail(mailgunOptions.To, $"New Assignment Announcement{suffix} on Upgraded People", newAssignments);
-        Logging.Log($"Successfully sent email notification for {newAssignments.Count} new record{suffix}.");
+        logger.Log($"Successfully sent email notification for {newAssignments.Count} new record{suffix}.");
     }
 }
 catch (Exception ex)
 {
-    Logging.Log($"An error occurred: {ex.Message}");
+    logger.Log($"An error occurred: {ex.Message}");
 }
 
 /// <summary>

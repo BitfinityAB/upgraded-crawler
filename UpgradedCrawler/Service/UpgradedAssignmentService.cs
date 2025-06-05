@@ -4,16 +4,16 @@ using HtmlAgilityPack;
 using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Helpers;
 
 namespace UpgradedCrawler.Service
 {
-    public class UpgradedAssignmentService(IHttpClientFactory httpClientFactory) : IAssignmentService
+    public class UpgradedAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
     {
         private const string providerId = "upgraded";
         private const string websiteUrl = "https://upgraded.se/lediga-uppdrag/";
         private const string adminUrl = "https://upgraded.se/wp-admin/admin-ajax.php";
         private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+        private readonly ILogging _logging = logging;
         public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
         {
             var newAssignments = new List<AssignmentAnnouncement>();
@@ -21,7 +21,7 @@ namespace UpgradedCrawler.Service
             var nonce = await GetNonce();
             if (string.IsNullOrEmpty(nonce))
             {
-                Logging.Log("Nonce not found. The program will exit.");
+                _logging.Log("Nonce not found. The program will exit.");
                 return Array.Empty<AssignmentAnnouncement>();
             }
             var httpClient = _httpClientFactory.CreateClient();
@@ -58,7 +58,7 @@ namespace UpgradedCrawler.Service
 
             if (rows?.Count == 0)
             {
-                Logging.Log("No data rows found in the table.");
+                _logging.Log("No data rows found in the table.");
                 return Array.Empty<AssignmentAnnouncement>();
             }
 
@@ -100,7 +100,7 @@ namespace UpgradedCrawler.Service
             }
             else
             {
-                Logging.Log("Nonce not found in the response.");
+                _logging.Log("Nonce not found in the response.");
                 return string.Empty;
             }
         }

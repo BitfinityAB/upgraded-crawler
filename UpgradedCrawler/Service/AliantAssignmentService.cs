@@ -1,20 +1,19 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Helpers;
 
 namespace UpgradedCrawler.Service
 {
-    public class AliantAssignmentService(IHttpClientFactory httpClientFactory) : IAssignmentService
+    public class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
     {
         private const string providerId = "aliant";
         private const string baseUrl = "https://aliant.recman.se";
 
         private const string jobIdPattern = @"job_id=(\d+)";
         private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+        private readonly ILogging _logging = logging;
 
         public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
         {
@@ -33,7 +32,7 @@ namespace UpgradedCrawler.Service
 
             if (rows == null)
             {
-                Logging.Log("No data rows found in the table.");
+                _logging.Log("No data rows found in the table.");
                 return Array.Empty<AssignmentAnnouncement>();
             }
 
