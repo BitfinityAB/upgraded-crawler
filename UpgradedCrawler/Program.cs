@@ -7,9 +7,11 @@ using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Interfaces;
 using Microsoft.Extensions.Configuration;
 
+var forceRun = args.Contains("-f") || args.Contains("--force");
+
 try
 {
-    if (!IsWorkingHour())
+    if (!forceRun && !IsWorkingHour())
     {
         Logging.Log("It's not working hours. The program will exit.");
         return;
@@ -18,7 +20,7 @@ try
            .ConfigureAppConfiguration((hostingContext, config) =>
            {
                // Add local settings file if it exists
-               var localSettings = "appsettings.local.json";
+               var localSettings = Path.Combine(AppContext.BaseDirectory, "appsettings.local.json");
                if (File.Exists(localSettings))
                {
                    config.AddJsonFile(localSettings, optional: true, reloadOnChange: true);
@@ -63,7 +65,7 @@ try
         var mailgunOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<MailgunOptions>>().Value;
         await emailService.SendEmail(mailgunOptions.To, $"New Assignment Announcement{suffix} on Upgraded People", newAssignments);
         Logging.Log($"Successfully sent email notification for {newAssignments.Count} new record{suffix}.");
-     }
+    }
 }
 catch (Exception ex)
 {
