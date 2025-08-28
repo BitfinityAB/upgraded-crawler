@@ -33,6 +33,7 @@ try
                // Register keyed services
                services.AddKeyedScoped<IAssignmentService, UpgradedAssignmentService>("upgraded");
                services.AddKeyedScoped<IAssignmentService, AliantAssignmentService>("aliant");
+               services.AddKeyedScoped<IAssignmentService, TeamPilotAssignmentService>("teampilot");
                services.AddScoped<ILogging>(_ => new Logging(logToEventLog));
                services.AddScoped<IEmailService, MailgunService>();
                services.AddDbContext<AppDbContext>();
@@ -51,7 +52,7 @@ try
     await db.Database.EnsureCreatedAsync();
     var newAssignments = new List<AssignmentAnnouncement>();
 
-    foreach (var provider in new string[] { "upgraded", "aliant" })
+    foreach (var provider in new string[] { "upgraded", "aliant", "teampilot" })
     {
         var assignmentService = host.Services.GetKeyedService<IAssignmentService>(provider);
         newAssignments.AddRange(await assignmentService.GetAssignmentAnnouncementsAsync(db));
