@@ -3,10 +3,11 @@ using HtmlAgilityPack;
 using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
+using UpgradedCrawler.Helpers;
 
 namespace UpgradedCrawler.Service
 {
-    public class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
+    public partial class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
     {
         private const string providerId = "aliant";
         private const string baseUrl = "https://aliant.recman.se";
@@ -36,12 +37,18 @@ namespace UpgradedCrawler.Service
                 return Array.Empty<AssignmentAnnouncement>();
             }
 
+            // Collect current website assignment IDs while processing new assignments
+            var currentWebsiteIds = new HashSet<string>();
+
             foreach (var row in rows.ChildNodes)
             {
                 if (row.Name != "div") continue;
-                var jobIdMatches = Regex.Match(row.Attributes["onclick"].Value, jobIdPattern);
+                var jobIdMatches = MyRegex().Match(row.Attributes["onclick"].Value);
                 var id = jobIdMatches.Success ? jobIdMatches.Groups[1].Value : "";
                 if (string.IsNullOrEmpty(id)) continue;
+
+                // Track current website IDs for cleanup
+                currentWebsiteIds.Add(id);
 
                 var url = $"{baseUrl}/job.php?job_id={id}";
                 var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
@@ -51,6 +58,10 @@ namespace UpgradedCrawler.Service
                 }
             }
 
+            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
+            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
+
+            // Add new assignments
             foreach (var assignment in newAssignments)
             {
                 dbContext.Assignments.Add(assignment);
@@ -60,5 +71,8 @@ namespace UpgradedCrawler.Service
 
             return newAssignments;
         }
+
+        [GeneratedRegex(jobIdPattern)]
+        private static partial Regex MyRegex();
     }
 }

@@ -4,12 +4,14 @@ using HtmlAgilityPack;
 using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
+using UpgradedCrawler.Helpers;
 
 namespace UpgradedCrawler.Service
 {
-    public class UpgradedAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
+    public partial class UpgradedAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
     {
         private const string providerId = "upgraded";
+        private const string noncePattern = @"var\s+bobz\s*=\s*\{\s*""nonce""\s*:\s*""(?<nonce>\w+)""";
         private const string websiteUrl = "https://upgraded.se/lediga-uppdrag/";
         private const string adminUrl = "https://upgraded.se/wp-admin/admin-ajax.php";
         private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
@@ -62,16 +64,26 @@ namespace UpgradedCrawler.Service
                 return Array.Empty<AssignmentAnnouncement>();
             }
 
+            // Collect current website assignment IDs while processing new assignments
+            var currentWebsiteIds = new HashSet<string>();
+
             rows?.ToList().ForEach(row =>
             {
                 var url = row.SelectSingleNode("td[1]/div[1]/div/div[1]/a")?.GetAttributeValue("href", "") ?? "";
                 var title = row.SelectSingleNode("td[1]/div[2]/h5")?.InnerText.Trim() ?? "";
                 var id = row.SelectSingleNode("td[1]/div[1]/div/div[2]/span[1]").InnerText.Trim();
+                
+                // Track current website IDs for cleanup
+                currentWebsiteIds.Add(id);
+
                 if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
                 {
                     newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
                 }
             });
+
+            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
+            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
 
             dbContext.Assignments.AddRange(newAssignments);
             await dbContext.SaveChangesAsync();
@@ -90,9 +102,7 @@ namespace UpgradedCrawler.Service
 
             var content = await response.Content.ReadAsStringAsync();
 
-            // Define a regex pattern to match the nonce value
-            var noncePattern = @"var\s+bobz\s*=\s*\{\s*""nonce""\s*:\s*""(?<nonce>\w+)""";
-            var match = Regex.Match(content, noncePattern);
+            var match = MyRegex().Match(content);
 
             if (match.Success && match.Groups["nonce"].Success)
             {
@@ -104,5 +114,8 @@ namespace UpgradedCrawler.Service
                 return string.Empty;
             }
         }
-    }
+
+        [GeneratedRegex(noncePattern)]
+        private static partial Regex MyRegex();
+        }
 }

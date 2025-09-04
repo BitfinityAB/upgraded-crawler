@@ -40,6 +40,7 @@ try
 
                services.AddHttpClient<IAssignmentService, UpgradedAssignmentService>();
                services.AddHttpClient<IAssignmentService, AliantAssignmentService>();
+               services.AddHttpClient<IAssignmentService, TeamPilotAssignmentService>();
 
                services.Configure<MailgunOptions>(
                    context.Configuration.GetSection("mailgun"));

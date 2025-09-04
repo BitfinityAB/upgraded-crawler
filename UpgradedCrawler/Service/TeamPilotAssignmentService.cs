@@ -3,6 +3,7 @@ using HtmlAgilityPack;
 using UpgradedCrawler.Core.Data;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
+using UpgradedCrawler.Helpers;
 
 namespace UpgradedCrawler.Service
 {
@@ -35,6 +36,9 @@ namespace UpgradedCrawler.Service
                 return Array.Empty<AssignmentAnnouncement>();
             }
 
+            // Collect current website assignment IDs while processing new assignments
+            var currentWebsiteIds = new HashSet<string>();
+
             foreach (var row in rows.ChildNodes)
             {
                 if (row.Name != "div") continue;
@@ -42,12 +46,19 @@ namespace UpgradedCrawler.Service
                 var href = row.SelectSingleNode("./div/div[2]/div[contains(@class, 'd-grid')]/a").Attributes["href"].Value;
                 var url = baseUrl + href;
                 var id = href.Split("/job/")[1];
+                
+                // Track current website IDs for cleanup
+                currentWebsiteIds.Add(id);
+
                 var title = row.SelectSingleNode("./div/div[2]/h5")?.InnerText.Trim() ?? "";
                 if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
                 {
                     newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
                 }
             }
+
+            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
+            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
 
             foreach (var assignment in newAssignments)
             {
@@ -58,5 +69,6 @@ namespace UpgradedCrawler.Service
 
             return newAssignments;
         }
+
     }
 }
