@@ -23,7 +23,7 @@ namespace UpgradedCrawler.Helpers
             var assignmentsToDelete = dbContext.Assignments
                 .Where(a => a.ProviderId == providerId 
                            && a.CreatedAt <= cutoffDate 
-                           && !currentWebsiteIds.Contains(a.Id))
+                           && !currentWebsiteIds.Contains(a.AssignmentId))
                 .ToList();
 
             var deletedCount = assignmentsToDelete.Count;

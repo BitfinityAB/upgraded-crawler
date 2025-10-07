@@ -18,4 +18,18 @@ public class AppDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
         => options.UseSqlite($"Data Source={DbPath}");
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AssignmentAnnouncement>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            
+            // Ensure AssignmentId + ProviderId combination is unique
+            entity.HasIndex(e => new { e.AssignmentId, e.ProviderId })
+                  .IsUnique()
+                  .HasDatabaseName("IX_Assignments_AssignmentId_ProviderId");
+        });
+    }
 }

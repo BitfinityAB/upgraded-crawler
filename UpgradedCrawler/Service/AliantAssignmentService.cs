@@ -52,7 +52,7 @@ namespace UpgradedCrawler.Service
 
                 var url = $"{baseUrl}/job.php?job_id={id}";
                 var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
-                if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
+                if (!dbContext.Assignments.Any(r => r.AssignmentId == id && r.ProviderId == providerId))
                 {
                     newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
                 }

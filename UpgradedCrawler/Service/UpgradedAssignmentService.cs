@@ -71,14 +71,21 @@ namespace UpgradedCrawler.Service
             {
                 var url = row.SelectSingleNode("td[1]/div[1]/div/div[1]/a")?.GetAttributeValue("href", "") ?? "";
                 var title = row.SelectSingleNode("td[1]/div[2]/h5")?.InnerText.Trim() ?? "";
-                var id = row.SelectSingleNode("td[1]/div[1]/div/div[2]/span[1]").InnerText.Trim();
+                var assignmentId = row.SelectSingleNode("td[1]/div[1]/div/div[2]/span[1]")?.InnerText.Trim() ?? "";
+                
+                // Skip rows where we couldn't extract a valid ID
+                if (string.IsNullOrWhiteSpace(assignmentId))
+                {
+                    _logging.Log($"Warning: Failed to extract assignment ID from a row. URL: {url}, Title: {title}");
+                    return;
+                }
                 
                 // Track current website IDs for cleanup
-                currentWebsiteIds.Add(id);
+                currentWebsiteIds.Add(assignmentId);
 
-                if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
+                if (!dbContext.Assignments.Any(r => r.AssignmentId == assignmentId && r.ProviderId == providerId))
                 {
-                    newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
+                    newAssignments.Add(new AssignmentAnnouncement(assignmentId, url, providerId, title, DateTime.Now));
                 }
             });
 

@@ -51,7 +51,7 @@ namespace UpgradedCrawler.Service
                 currentWebsiteIds.Add(id);
 
                 var title = row.SelectSingleNode("./div/div[2]/h5")?.InnerText.Trim() ?? "";
-                if (!dbContext.Assignments.Any(r => r.Id == id && r.ProviderId == providerId))
+                if (!dbContext.Assignments.Any(r => r.AssignmentId == id && r.ProviderId == providerId))
                 {
                     newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
                 }
