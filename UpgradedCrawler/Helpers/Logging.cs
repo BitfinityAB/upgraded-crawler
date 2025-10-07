@@ -17,34 +17,31 @@ namespace UpgradedCrawler.Helpers
 
             if (_logToEventLog && OperatingSystem.IsWindows())
             {
-                if (_logToEventLog && OperatingSystem.IsWindows())
+                try
                 {
-                    try
+                    const string logName = "Application";
+                    const string source = "UpgradedCrawler";
+
+                    // Create the event source if it doesn't exist
+                    if (!EventLog.SourceExists(source))
                     {
-                        const string logName = "Application";
-                        const string source = "UpgradedCrawler";
-
-                        // Create the event source if it doesn't exist
-                        if (!EventLog.SourceExists(source))
-                        {
-                            EventLog.CreateEventSource(source, logName);
-                        }
-
-                        using var eventLog = new EventLog(logName)
-                        {
-                            Source = source
-                        };
-
-                        eventLog.WriteEntry(
-                            message,
-                            EventLogEntryType.Information,
-                            eventID: 0,
-                            category: 0);
+                        EventLog.CreateEventSource(source, logName);
                     }
-                    catch (SecurityException ex)
+
+                    using var eventLog = new EventLog(logName)
                     {
-                        Console.WriteLine($"Failed to write to event log: {ex.Message}. Run as administrator to write to event log.");
-                    }
+                        Source = source
+                    };
+
+                    eventLog.WriteEntry(
+                        message,
+                        EventLogEntryType.Information,
+                        eventID: 0,
+                        category: 0);
+                }
+                catch (SecurityException ex)
+                {
+                    Console.WriteLine($"Failed to write to event log: {ex.Message}. Run as administrator to write to event log.");
                 }
             }
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");

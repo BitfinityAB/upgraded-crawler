@@ -3,6 +3,7 @@ using Mailgun.Messages;
 using Mailgun.Service;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
+using System.Net;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Extensions;
 using UpgradedCrawler.Core.Interfaces;
@@ -28,6 +29,7 @@ public class MailgunService(IOptions<MailgunOptions> mailgunOptions) : IEmailSer
 
         var content = await mg.SendMessageAsync(mailgunOptions.Domain, message);
         content.Should().NotBeNull();
+        content.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private static MailgunTemplateData GetMailgunTemplateData(ICollection<AssignmentAnnouncement> assignments)
