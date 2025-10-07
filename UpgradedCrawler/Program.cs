@@ -68,7 +68,7 @@ try
     {
         var suffix = newAssignments.Count == 1 ? "" : "s";
         var mailgunOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<MailgunOptions>>().Value;
-        await emailService.SendEmail(mailgunOptions.To, $"New Assignment Announcement{suffix} on Upgraded People", newAssignments);
+        await emailService.SendEmail(mailgunOptions.FromAddress, mailgunOptions.FromName, mailgunOptions.To, $"New Assignment Announcement{suffix} on Upgraded People", newAssignments);
         logger.Log($"Successfully sent email notification for {newAssignments.Count} new record{suffix}.");
     }
 }

@@ -13,7 +13,7 @@ public class MailgunService(IOptions<MailgunOptions> mailgunOptions) : IEmailSer
 {
     private readonly MailgunOptions mailgunOptions = mailgunOptions.Value;
 
-    public async Task SendEmail(string to, string subject, ICollection<AssignmentAnnouncement> assignments)
+    public async Task SendEmail(string fromAddress, string fromName, string to, string subject, ICollection<AssignmentAnnouncement> assignments)
     {
         var mg = new MessageService(mailgunOptions.ApiKey, null, "api.eu.mailgun.net/v3");
 
@@ -23,7 +23,7 @@ public class MailgunService(IOptions<MailgunOptions> mailgunOptions) : IEmailSer
                  Email = to
              })
              .SetSubject(subject)
-             .SetFromAddress(new Recipient { Email = "noreply@bitfinity.dev", DisplayName = "Bitfinity AB" })
+             .SetFromAddress(new Recipient { Email = fromAddress, DisplayName = fromName })
              .SetTemplate(mailgunOptions.TemplateName, JObject.FromObject(GetMailgunTemplateData(assignments)))
              .GetMessage();
 

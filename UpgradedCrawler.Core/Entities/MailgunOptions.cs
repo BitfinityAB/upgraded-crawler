@@ -6,4 +6,6 @@ public record MailgunOptions
     public required string Domain { get; set; }
     public required string TemplateName { get; set; }
     public required string To { get; set; }
+    public required string FromAddress { get; set; }
+    public required string FromName { get; set; }
 }
