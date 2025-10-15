@@ -27,12 +27,21 @@ namespace UpgradedCrawler.Service
             var htmlDoc = new HtmlDocument();
             htmlDoc.LoadHtml(responseString);
 
-            // Extract and display table data
-            var rows = htmlDoc.DocumentNode.SelectSingleNode("/html/body/div[1]/div[3]/div/div[1]");
+            // Find the H3 tag with "Active Positions" text
+            var activePositionsHeader = htmlDoc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Active Positions')]");
+            
+            if (activePositionsHeader == null)
+            {
+                _logging.Log("Active Positions header not found.");
+                return Array.Empty<AssignmentAnnouncement>();
+            }
+
+            // Get the div[@class='row'] that comes after "Active Positions" but before "Historical Positions"
+            var rows = activePositionsHeader.SelectSingleNode("following-sibling::div[@class='row' and following-sibling::h3[contains(text(), 'Historical Positions')]][1]");
 
             if (rows == null)
             {
-                _logging.Log("No data rows found in the table.");
+                _logging.Log("No data rows found under Active Positions.");
                 return Array.Empty<AssignmentAnnouncement>();
             }
 
