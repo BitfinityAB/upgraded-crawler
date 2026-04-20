@@ -35,6 +35,7 @@ try
                services.AddKeyedScoped<IAssignmentService, AliantAssignmentService>("aliant");
                services.AddKeyedScoped<IAssignmentService, TeamPilotAssignmentService>("teampilot");
                services.AddKeyedScoped<IAssignmentService, MissPrymAssignmentService>("missprym");
+               services.AddKeyedScoped<IAssignmentService, TechRelationsAssignmentService>("techrelations");
                services.AddScoped<ILogging>(_ => new Logging(logToEventLog));
                services.AddScoped<IEmailService, MailgunService>();
                services.AddDbContext<AppDbContext>();
@@ -43,6 +44,7 @@ try
                services.AddHttpClient<IAssignmentService, AliantAssignmentService>();
                services.AddHttpClient<IAssignmentService, TeamPilotAssignmentService>();
                services.AddHttpClient<IAssignmentService, MissPrymAssignmentService>();
+               services.AddHttpClient<IAssignmentService, TechRelationsAssignmentService>();
 
                services.Configure<MailgunOptions>(
                    context.Configuration.GetSection("mailgun"));
@@ -55,7 +57,7 @@ try
     await db.Database.EnsureCreatedAsync();
     var newAssignments = new List<AssignmentAnnouncement>();
 
-    foreach (var provider in new string[] { "upgraded", "aliant", "teampilot", "missprym" })
+    foreach (var provider in new string[] { "upgraded", "aliant", "teampilot", "missprym", "techrelations" })
     {
         var assignmentService = host.Services.GetKeyedService<IAssignmentService>(provider);
         newAssignments.AddRange(await assignmentService.GetAssignmentAnnouncementsAsync(db));
