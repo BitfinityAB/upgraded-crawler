@@ -2,7 +2,8 @@ using System.Dynamic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
-namespace UpgradedCrawler.Core.Extensions;
+
+namespace UpgradedCrawler.Extensions;
 
 public static class JsonExtensions
 {

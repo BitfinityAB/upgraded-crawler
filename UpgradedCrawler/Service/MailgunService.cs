@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Core.Extensions;
+using UpgradedCrawler.Extensions;
 
 namespace UpgradedCrawler.Service;
 
