@@ -10,21 +10,12 @@ public class AliantAssignmentServiceTests(SqliteTestFixture fixture) : IClassFix
 {
     private readonly SqliteTestFixture _fixture = fixture;
 
-    private static string LoadFixture(string filename)
-    {
-        var assembly = typeof(SqliteTestFixture).Assembly;
-        var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(filename));
-        using var stream = assembly.GetManifestResourceStream(name)!;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
     [Fact]
     public async Task ParsesAssignmentFromFixture()
     {
         using var db = _fixture.CreateContext();
         var logging = Substitute.For<ILogging>();
-        var handler = new FakeHttpMessageHandler(LoadFixture("aliant-assignments.html"));
+        var handler = new FakeHttpMessageHandler(TestFixtureLoader.Load("aliant-assignments.html"));
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(Arg.Any<string>()).Returns(new HttpClient(handler));
 

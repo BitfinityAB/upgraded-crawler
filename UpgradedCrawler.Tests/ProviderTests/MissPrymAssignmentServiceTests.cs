@@ -12,22 +12,13 @@ public class MissPrymAssignmentServiceTests(SqliteTestFixture fixture) : IClassF
 {
     private readonly SqliteTestFixture _fixture = fixture;
 
-    private static string LoadFixture(string filename)
-    {
-        var assembly = typeof(SqliteTestFixture).Assembly;
-        var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(filename));
-        using var stream = assembly.GetManifestResourceStream(name)!;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
     [Fact]
     public async Task ParsesAssignmentFromFixture()
     {
         using var db = _fixture.CreateContext();
         var logging = Substitute.For<ILogging>();
         var options = Options.Create(new MissPrymOptions { ApiKey = "test-key" });
-        var handler = new FakeHttpMessageHandler(LoadFixture("missprym-assignments.json"));
+        var handler = new FakeHttpMessageHandler(TestFixtureLoader.Load("missprym-assignments.json"));
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(Arg.Any<string>()).Returns(new HttpClient(handler));
 

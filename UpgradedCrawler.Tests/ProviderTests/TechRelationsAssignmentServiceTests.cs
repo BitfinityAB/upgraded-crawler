@@ -10,21 +10,12 @@ public class TechRelationsAssignmentServiceTests(SqliteTestFixture fixture) : IC
 {
     private readonly SqliteTestFixture _fixture = fixture;
 
-    private static string LoadFixture(string filename)
-    {
-        var assembly = typeof(SqliteTestFixture).Assembly;
-        var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(filename));
-        using var stream = assembly.GetManifestResourceStream(name)!;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
     [Fact]
     public async Task ParsesOnlyUnassignedAssignmentsFromFixture()
     {
         using var db = _fixture.CreateContext();
         var logging = Substitute.For<ILogging>();
-        var handler = new FakeHttpMessageHandler(LoadFixture("techrelations-assignments.json"));
+        var handler = new FakeHttpMessageHandler(TestFixtureLoader.Load("techrelations-assignments.json"));
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(Arg.Any<string>()).Returns(new HttpClient(handler));
 

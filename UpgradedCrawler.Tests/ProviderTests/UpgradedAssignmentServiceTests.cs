@@ -11,15 +11,6 @@ public class UpgradedAssignmentServiceTests(SqliteTestFixture fixture) : IClassF
 {
     private readonly SqliteTestFixture _fixture = fixture;
 
-    private static string LoadFixture(string filename)
-    {
-        var assembly = typeof(SqliteTestFixture).Assembly;
-        var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(filename));
-        using var stream = assembly.GetManifestResourceStream(name)!;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
     [Fact]
     public async Task ParsesAssignmentFromFixture()
     {
@@ -30,10 +21,10 @@ public class UpgradedAssignmentServiceTests(SqliteTestFixture fixture) : IClassF
         {
             ["https://upgraded.se/lediga-uppdrag/"] =
                 new HttpResponseMessage(HttpStatusCode.OK)
-                { Content = new StringContent(LoadFixture("upgraded-nonce.html")) },
+                { Content = new StringContent(TestFixtureLoader.Load("upgraded-nonce.html")) },
             ["https://upgraded.se/wp-admin/admin-ajax.php"] =
                 new HttpResponseMessage(HttpStatusCode.OK)
-                { Content = new StringContent(LoadFixture("upgraded-assignments.json")) },
+                { Content = new StringContent(TestFixtureLoader.Load("upgraded-assignments.json")) },
         });
 
         var factory = Substitute.For<IHttpClientFactory>();
