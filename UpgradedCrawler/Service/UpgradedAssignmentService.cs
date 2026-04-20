@@ -1,128 +1,85 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
-using UpgradedCrawler.Core.Data;
-using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Helpers;
 
-namespace UpgradedCrawler.Service
+namespace UpgradedCrawler.Service;
+
+public partial class UpgradedAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging)
+    : AssignmentServiceBase(httpClientFactory, logging)
 {
-    public partial class UpgradedAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
+    private const string NoncePattern = @"var\s+bobz\s*=\s*\{\s*""nonce""\s*:\s*""(?<nonce>\w+)""";
+    private const string WebsiteUrl = "https://upgraded.se/lediga-uppdrag/";
+    private const string AdminUrl = "https://upgraded.se/wp-admin/admin-ajax.php";
+
+    protected override string ProviderId => "upgraded";
+
+    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
     {
-        private const string providerId = "upgraded";
-        private const string noncePattern = @"var\s+bobz\s*=\s*\{\s*""nonce""\s*:\s*""(?<nonce>\w+)""";
-        private const string websiteUrl = "https://upgraded.se/lediga-uppdrag/";
-        private const string adminUrl = "https://upgraded.se/wp-admin/admin-ajax.php";
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-        private readonly ILogging _logging = logging;
-        public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
+        var nonce = await GetNonce();
+        if (string.IsNullOrEmpty(nonce))
         {
-            var newAssignments = new List<AssignmentAnnouncement>();
-
-            var nonce = await GetNonce();
-            if (string.IsNullOrEmpty(nonce))
-            {
-                _logging.Log("Nonce not found. The program will exit.");
-                return Array.Empty<AssignmentAnnouncement>();
-            }
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/javascript, */*; q=0.01");
-            httpClient.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
-
-            // Prepare the form data
-            var formData = new FormUrlEncodedContent(
-            [
-                new KeyValuePair<string, string>("action", "do_filter_posts"),
-                new KeyValuePair<string, string>("nonce", $"{nonce}"),
-                new KeyValuePair<string, string>("params[ort-term]", "alla-orter"),
-                new KeyValuePair<string, string>("params[roll-term]", "alla-roller"),
-                new KeyValuePair<string, string>("params[kund-term]", "alla-kunder"),
-            ]);
-
-            // Send the POST request
-            var response = await httpClient.PostAsync(adminUrl, formData);
-            response.EnsureSuccessStatusCode();
-
-            // Read the response as a string
-            var responseString = await response.Content.ReadAsStringAsync();
-
-            // Parse the JSON to get the HTML content
-            var jsonDoc = JsonDocument.Parse(responseString);
-            string htmlContent = jsonDoc.RootElement.GetProperty("content").GetString();
-
-            // Load HTML content into HtmlAgilityPack for parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(htmlContent);
-
-            // Extract and display table data
-            var rows = htmlDoc.DocumentNode.SelectNodes("//table/tr[position()>1]");
-
-            if (rows?.Count == 0)
-            {
-                _logging.Log("No data rows found in the table.");
-                return Array.Empty<AssignmentAnnouncement>();
-            }
-
-            // Collect current website assignment IDs while processing new assignments
-            var currentWebsiteIds = new HashSet<string>();
-
-            rows?.ToList().ForEach(row =>
-            {
-                var url = row.SelectSingleNode("td[1]/div[1]/div/div[1]/a")?.GetAttributeValue("href", "") ?? "";
-                var title = row.SelectSingleNode("td[1]/div[2]/h5")?.InnerText.Trim() ?? "";
-                var assignmentId = row.SelectSingleNode("td[1]/div[1]/div/div[2]/span[1]")?.InnerText.Trim() ?? "";
-                
-                // Skip rows where we couldn't extract a valid ID
-                if (string.IsNullOrWhiteSpace(assignmentId))
-                {
-                    _logging.Log($"Warning: Failed to extract assignment ID from a row. URL: {url}, Title: {title}");
-                    return;
-                }
-                
-                // Track current website IDs for cleanup
-                currentWebsiteIds.Add(assignmentId);
-
-                if (!dbContext.Assignments.Any(r => r.AssignmentId == assignmentId && r.ProviderId == providerId))
-                {
-                    newAssignments.Add(new AssignmentAnnouncement(assignmentId, url, providerId, title, DateTime.Now));
-                }
-            });
-
-            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
-            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
-
-            dbContext.Assignments.AddRange(newAssignments);
-            await dbContext.SaveChangesAsync();
-
-            return newAssignments;
+            _logging.Log("Upgraded: nonce not found, skipping.");
+            return [];
         }
 
-        /// <summary>
-        /// Gets nonce from the website.
-        /// </summary>
-        private async Task<string> GetNonce()
+        var httpClient = _httpClientFactory.CreateClient();
+        httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/javascript, */*; q=0.01");
+        httpClient.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+
+        var formData = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("action", "do_filter_posts"),
+            new KeyValuePair<string, string>("nonce", nonce),
+            new KeyValuePair<string, string>("params[ort-term]", "alla-orter"),
+            new KeyValuePair<string, string>("params[roll-term]", "alla-roller"),
+            new KeyValuePair<string, string>("params[kund-term]", "alla-kunder"),
+        ]);
+
+        var response = await httpClient.PostAsync(AdminUrl, formData);
+        response.EnsureSuccessStatusCode();
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        var jsonDoc = JsonDocument.Parse(responseString);
+        var htmlContent = jsonDoc.RootElement.GetProperty("content").GetString() ?? string.Empty;
+
+        var htmlDoc = new HtmlDocument();
+        htmlDoc.LoadHtml(htmlContent);
+
+        var rows = htmlDoc.DocumentNode.SelectNodes("//table/tr[position()>1]");
+        if (rows is null || rows.Count == 0)
         {
-            var httpClient = _httpClientFactory.CreateClient();
-            var response = await httpClient.GetAsync(websiteUrl);
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync();
-
-            var match = MyRegex().Match(content);
-
-            if (match.Success && match.Groups["nonce"].Success)
-            {
-                return match.Groups["nonce"].Value;
-            }
-            else
-            {
-                _logging.Log("Nonce not found in the response.");
-                return string.Empty;
-            }
+            _logging.Log("Upgraded: no data rows found.");
+            return [];
         }
 
-        [GeneratedRegex(noncePattern)]
-        private static partial Regex MyRegex();
+        var results = new List<(string, string, string)>();
+        foreach (var row in rows)
+        {
+            var url = row.SelectSingleNode("td[1]/div[1]/div/div[1]/a")?.GetAttributeValue("href", "") ?? "";
+            var title = row.SelectSingleNode("td[1]/div[2]/h5")?.InnerText.Trim() ?? "";
+            var id = row.SelectSingleNode("td[1]/div[1]/div/div[2]/span[1]")?.InnerText.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                _logging.Log($"Upgraded: failed to extract ID. URL: {url}, Title: {title}");
+                continue;
+            }
+            results.Add((id, url, title));
         }
+        return results;
+    }
+
+    private async Task<string> GetNonce()
+    {
+        var httpClient = _httpClientFactory.CreateClient();
+        var response = await httpClient.GetAsync(WebsiteUrl);
+        response.EnsureSuccessStatusCode();
+        var content = await response.Content.ReadAsStringAsync();
+        var match = NonceRegex().Match(content);
+        return match.Success && match.Groups["nonce"].Success ? match.Groups["nonce"].Value : string.Empty;
+    }
+
+    [GeneratedRegex(NoncePattern)]
+    private static partial Regex NonceRegex();
 }

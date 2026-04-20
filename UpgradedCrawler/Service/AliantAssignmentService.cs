@@ -1,78 +1,53 @@
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
-using UpgradedCrawler.Core.Data;
-using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Helpers;
 
-namespace UpgradedCrawler.Service
+namespace UpgradedCrawler.Service;
+
+public partial class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging)
+    : AssignmentServiceBase(httpClientFactory, logging)
 {
-    public partial class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
+    private const string BaseUrl = "https://aliant.recman.se";
+    private const string JobIdPattern = @"job_id=(\d+)";
+
+    protected override string ProviderId => "aliant";
+
+    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
     {
-        private const string providerId = "aliant";
-        private const string baseUrl = "https://aliant.recman.se";
+        var httpClient = _httpClientFactory.CreateClient();
+        var response = await httpClient.GetAsync($"{BaseUrl}/index.php");
+        response.EnsureSuccessStatusCode();
+        var responseString = await response.Content.ReadAsStringAsync();
 
-        private const string jobIdPattern = @"job_id=(\d+)";
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-        private readonly ILogging _logging = logging;
+        var htmlDoc = new HtmlDocument();
+        htmlDoc.LoadHtml(responseString);
 
-        public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
+        var container = htmlDoc.DocumentNode.SelectSingleNode("//div[contains(@id, 'job-post-listing-box')]");
+        if (container is null)
         {
-            var httpClient = _httpClientFactory.CreateClient();
-            var newAssignments = new List<AssignmentAnnouncement>();
-            var response = await httpClient.GetAsync($"{baseUrl}/index.php");
-            response.EnsureSuccessStatusCode();
-            var responseString = await response.Content.ReadAsStringAsync();
-
-            // Load HTML content directly into HtmlAgilityPack for parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(responseString);
-
-            // Extract and display table data
-            var rows = htmlDoc.DocumentNode.SelectSingleNode("//div[contains(@id, 'job-post-listing-box')]");
-
-            if (rows == null)
-            {
-                _logging.Log("No data rows found in the table.");
-                return Array.Empty<AssignmentAnnouncement>();
-            }
-
-            // Collect current website assignment IDs while processing new assignments
-            var currentWebsiteIds = new HashSet<string>();
-
-            foreach (var row in rows.ChildNodes)
-            {
-                if (row.Name != "div") continue;
-                var jobIdMatches = MyRegex().Match(row.Attributes["onclick"].Value);
-                var id = jobIdMatches.Success ? jobIdMatches.Groups[1].Value : "";
-                if (string.IsNullOrEmpty(id)) continue;
-
-                // Track current website IDs for cleanup
-                currentWebsiteIds.Add(id);
-
-                var url = $"{baseUrl}/job.php?job_id={id}";
-                var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
-                if (!dbContext.Assignments.Any(r => r.AssignmentId == id && r.ProviderId == providerId))
-                {
-                    newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
-                }
-            }
-
-            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
-            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
-
-            // Add new assignments
-            foreach (var assignment in newAssignments)
-            {
-                dbContext.Assignments.Add(assignment);
-            }
-
-            await dbContext.SaveChangesAsync();
-
-            return newAssignments;
+            _logging.Log("Aliant: job listing container not found.");
+            return [];
         }
 
-        [GeneratedRegex(jobIdPattern)]
-        private static partial Regex MyRegex();
+        var results = new List<(string, string, string)>();
+        foreach (var row in container.ChildNodes)
+        {
+            if (row.Name != "div") continue;
+
+            var onclick = row.Attributes["onclick"]?.Value;
+            if (onclick is null) continue;
+
+            var match = JobIdRegex().Match(onclick);
+            var id = match.Success ? match.Groups[1].Value : "";
+            if (string.IsNullOrEmpty(id)) continue;
+
+            var url = $"{BaseUrl}/job.php?job_id={id}";
+            var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
+            results.Add((id, url, title));
+        }
+        return results;
     }
+
+    [GeneratedRegex(JobIdPattern)]
+    private static partial Regex JobIdRegex();
 }
