@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -37,7 +38,11 @@ try
             services.AddKeyedScoped<IAssignmentService, TechRelationsAssignmentService>("techrelations");
             services.AddScoped<ILogging>(_ => new Logging(logToEventLog));
             services.AddScoped<IEmailService, MailgunService>();
-            services.AddDbContext<AppDbContext>();
+            services.AddDbContext<AppDbContext>(options =>
+            {
+                var folder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                options.UseSqlite($"Data Source={Path.Join(folder, "assignments.db")}");
+            });
 
             services.AddHttpClient<IAssignmentService, UpgradedAssignmentService>();
             services.AddHttpClient<IAssignmentService, AliantAssignmentService>();
