@@ -12,7 +12,7 @@ public class TechRelationsAssignmentService(IHttpClientFactory httpClientFactory
 
     protected override string ProviderId => "techrelations";
 
-    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
         var httpClient = _httpClientFactory.CreateClient();
         var response = await httpClient.GetAsync(ApiUrl);
@@ -26,7 +26,7 @@ public class TechRelationsAssignmentService(IHttpClientFactory httpClientFactory
             return [];
         }
 
-        var results = new List<(string, string, string)>();
+        var results = new List<(string, string, string, string)>();
         foreach (var assignment in assignments)
         {
             if (assignment.Acf?.Assigned != false) continue;
@@ -36,7 +36,8 @@ public class TechRelationsAssignmentService(IHttpClientFactory httpClientFactory
                 "https://admin.techrelations.se/assignments",
                 "https://www.techrelations.se/konsultuppdrag") ?? "";
             var title = assignment.Title?.Rendered ?? "";
-            results.Add((id, url, title));
+            var description = assignment.Content?.Rendered ?? "";
+            results.Add((id, url, title, description));
         }
         return results;
     }
@@ -52,6 +53,9 @@ internal class TechRelationsAssignment
     [JsonPropertyName("title")]
     public TechRelationsTitle? Title { get; set; }
 
+    [JsonPropertyName("content")]
+    public TechRelationsContent? Content { get; set; }
+
     [JsonPropertyName("acf")]
     public TechRelationsAcf? Acf { get; set; }
 }
@@ -66,4 +70,10 @@ internal class TechRelationsAcf
 {
     [JsonPropertyName("assigned")]
     public bool Assigned { get; set; }
+}
+
+internal class TechRelationsContent
+{
+    [JsonPropertyName("rendered")]
+    public string? Rendered { get; set; }
 }

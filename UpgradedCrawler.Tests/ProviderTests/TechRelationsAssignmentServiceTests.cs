@@ -26,5 +26,6 @@ public class TechRelationsAssignmentServiceTests(SqliteTestFixture fixture) : IC
         Assert.Equal("999", result.First().AssignmentId);
         Assert.Equal("https://www.techrelations.se/konsultuppdrag/999", result.First().Url);
         Assert.Equal("TechRelations Test Assignment", result.First().Title);
+        Assert.Equal("Detailed TechRelations description.", result.First().Description);
     }
 }

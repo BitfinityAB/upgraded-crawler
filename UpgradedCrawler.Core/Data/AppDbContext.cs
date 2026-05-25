@@ -6,6 +6,7 @@ namespace UpgradedCrawler.Core.Data;
 public class AppDbContext : DbContext
 {
     public DbSet<AssignmentAnnouncement>? Assignments { get; set; }
+    public DbSet<AssignmentAnalysis>? AssignmentAnalyses { get; set; }
     public string DbPath { get; private set; }
 
     public AppDbContext()
@@ -35,6 +36,15 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.AssignmentId, e.ProviderId })
                   .IsUnique()
                   .HasDatabaseName("IX_Assignments_AssignmentId_ProviderId");
+        });
+
+        modelBuilder.Entity<AssignmentAnalysis>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            entity.HasIndex(e => new { e.AssignmentId, e.ProviderId })
+                  .IsUnique()
+                  .HasDatabaseName("IX_AssignmentAnalyses_AssignmentId_ProviderId");
         });
     }
 }

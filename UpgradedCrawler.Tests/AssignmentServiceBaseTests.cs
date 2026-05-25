@@ -10,7 +10,7 @@ public class AssignmentServiceBaseTests(SqliteTestFixture fixture) : IClassFixtu
 {
     private readonly SqliteTestFixture _fixture = fixture;
 
-    private static FakeService CreateService(string providerId, IEnumerable<(string id, string url, string title)> items)
+    private static FakeService CreateService(string providerId, IEnumerable<(string id, string url, string title, string description)> items)
     {
         var logging = Substitute.For<ILogging>();
         var factory = Substitute.For<IHttpClientFactory>();
@@ -21,7 +21,7 @@ public class AssignmentServiceBaseTests(SqliteTestFixture fixture) : IClassFixtu
     public async Task NewAssignments_AreReturnedAndPersisted()
     {
         using var db = _fixture.CreateContext();
-        var service = CreateService("fake-new", [("id-1", "https://example.com/1", "Title One")]);
+        var service = CreateService("fake-new", [("id-1", "https://example.com/1", "Title One", "")]);
 
         var result = await service.GetAssignmentAnnouncementsAsync(db);
 
@@ -36,7 +36,7 @@ public class AssignmentServiceBaseTests(SqliteTestFixture fixture) : IClassFixtu
     public async Task ExistingAssignment_IsNotReturnedAgain()
     {
         using var db = _fixture.CreateContext();
-        var service = CreateService("fake-dup", [("id-dup", "https://example.com/dup", "Dup")]);
+        var service = CreateService("fake-dup", [("id-dup", "https://example.com/dup", "Dup", "")]);
 
         await service.GetAssignmentAnnouncementsAsync(db);
         var secondRun = await service.GetAssignmentAnnouncementsAsync(db);
@@ -55,7 +55,7 @@ public class AssignmentServiceBaseTests(SqliteTestFixture fixture) : IClassFixtu
         db.Assignments!.Add(old);
         await db.SaveChangesAsync();
 
-        var service = CreateService("fake-old", [("new-id", "https://example.com/new", "New")]);
+        var service = CreateService("fake-old", [("new-id", "https://example.com/new", "New", "")]);
         await service.GetAssignmentAnnouncementsAsync(db);
 
         Assert.DoesNotContain(db.Assignments!, a => a.AssignmentId == "old-id");
@@ -71,7 +71,7 @@ public class AssignmentServiceBaseTests(SqliteTestFixture fixture) : IClassFixtu
         db.Assignments!.Add(recent);
         await db.SaveChangesAsync();
 
-        var service = CreateService("fake-recent", [("other-id", "https://example.com/other", "Other")]);
+        var service = CreateService("fake-recent", [("other-id", "https://example.com/other", "Other", "")]);
         await service.GetAssignmentAnnouncementsAsync(db);
 
         Assert.Contains(db.Assignments!, a => a.AssignmentId == "recent-id");
@@ -81,11 +81,11 @@ public class AssignmentServiceBaseTests(SqliteTestFixture fixture) : IClassFixtu
         IHttpClientFactory factory,
         ILogging logging,
         string providerId,
-        IEnumerable<(string id, string url, string title)> items)
+        IEnumerable<(string id, string url, string title, string description)> items)
         : AssignmentServiceBase(factory, logging)
     {
         protected override string ProviderId => providerId;
-        protected override Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
+        protected override Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
             => Task.FromResult(items);
     }
 }

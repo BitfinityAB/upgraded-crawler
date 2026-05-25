@@ -18,7 +18,7 @@ public class MissPrymAssignmentService(
 
     protected override string ProviderId => "missprym";
 
-    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
         var httpClient = _httpClientFactory.CreateClient();
         var request = new HttpRequestMessage(HttpMethod.Get, ApiUrl);
@@ -37,12 +37,12 @@ public class MissPrymAssignmentService(
             return [];
         }
 
-        var results = new List<(string, string, string)>();
+        var results = new List<(string, string, string, string)>();
         foreach (var assignment in assignments)
         {
             if (string.IsNullOrEmpty(assignment.Id)) continue;
             var url = $"{BaseUrl}/job-posting/{assignment.Id}";
-            results.Add((assignment.Id, url, assignment.Title ?? ""));
+            results.Add((assignment.Id, url, assignment.Title ?? "", assignment.Description));
         }
         return results;
     }
@@ -52,4 +52,5 @@ internal class MissPrymAssignment
 {
     public string Id { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 }

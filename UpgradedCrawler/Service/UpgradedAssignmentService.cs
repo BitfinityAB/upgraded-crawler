@@ -14,7 +14,7 @@ public partial class UpgradedAssignmentService(IHttpClientFactory httpClientFact
 
     protected override string ProviderId => "upgraded";
 
-    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
         var nonce = await GetNonce();
         if (string.IsNullOrEmpty(nonce))
@@ -53,7 +53,7 @@ public partial class UpgradedAssignmentService(IHttpClientFactory httpClientFact
             return [];
         }
 
-        var results = new List<(string, string, string)>();
+        var results = new List<(string, string, string, string)>();
         foreach (var row in rows)
         {
             var url = row.SelectSingleNode("td[1]/div[1]/div/div[1]/a")?.GetAttributeValue("href", "") ?? "";
@@ -65,7 +65,7 @@ public partial class UpgradedAssignmentService(IHttpClientFactory httpClientFact
                 _logging.Log($"Upgraded: failed to extract ID. URL: {url}, Title: {title}");
                 continue;
             }
-            results.Add((id, url, title));
+            results.Add((id, url, title, ""));
         }
         return results;
     }

@@ -12,7 +12,7 @@ public abstract class AssignmentServiceBase(IHttpClientFactory httpClientFactory
 
     protected abstract string ProviderId { get; }
 
-    protected abstract Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync();
+    protected abstract Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync();
 
     public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
     {
@@ -20,13 +20,13 @@ public abstract class AssignmentServiceBase(IHttpClientFactory httpClientFactory
         var newAssignments = new List<AssignmentAnnouncement>();
         var currentWebsiteIds = new HashSet<string>();
 
-        foreach (var (id, url, title) in fetched)
+        foreach (var (id, url, title, description) in fetched)
         {
             if (string.IsNullOrWhiteSpace(id)) continue;
             currentWebsiteIds.Add(id);
 
             if (!dbContext.Assignments!.Any(r => r.AssignmentId == id && r.ProviderId == ProviderId))
-                newAssignments.Add(new AssignmentAnnouncement(id, url, ProviderId, title, DateTime.Now));
+                newAssignments.Add(new AssignmentAnnouncement(id, url, ProviderId, title, DateTime.Now, description));
         }
 
         AssignmentCleanupHelper.CleanupOldAssignments(dbContext, ProviderId, currentWebsiteIds, _logging);

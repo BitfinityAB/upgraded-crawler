@@ -10,7 +10,7 @@ public class TeamPilotAssignmentService(IHttpClientFactory httpClientFactory, IL
 
     protected override string ProviderId => "teampilot";
 
-    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
         var httpClient = _httpClientFactory.CreateClient();
         var response = await httpClient.GetAsync($"{BaseUrl}/jobs");
@@ -35,7 +35,7 @@ public class TeamPilotAssignmentService(IHttpClientFactory httpClientFactory, IL
             return [];
         }
 
-        var results = new List<(string, string, string)>();
+        var results = new List<(string, string, string, string)>();
         foreach (var row in rows.ChildNodes)
         {
             if (row.Name != "div") continue;
@@ -49,7 +49,7 @@ public class TeamPilotAssignmentService(IHttpClientFactory httpClientFactory, IL
 
             var url = BaseUrl + href;
             var title = row.SelectSingleNode("./div/div[2]/h5")?.InnerText.Trim() ?? "";
-            results.Add((id, url, title));
+            results.Add((id, url, title, ""));
         }
         return results;
     }

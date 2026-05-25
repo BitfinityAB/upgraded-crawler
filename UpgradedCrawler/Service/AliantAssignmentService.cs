@@ -12,7 +12,7 @@ public partial class AliantAssignmentService(IHttpClientFactory httpClientFactor
 
     protected override string ProviderId => "aliant";
 
-    protected override async Task<IEnumerable<(string id, string url, string title)>> FetchAssignmentsAsync()
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
         var httpClient = _httpClientFactory.CreateClient();
         var response = await httpClient.GetAsync($"{BaseUrl}/index.php");
@@ -29,7 +29,7 @@ public partial class AliantAssignmentService(IHttpClientFactory httpClientFactor
             return [];
         }
 
-        var results = new List<(string, string, string)>();
+        var results = new List<(string, string, string, string)>();
         foreach (var row in container.ChildNodes)
         {
             if (row.Name != "div") continue;
@@ -43,7 +43,7 @@ public partial class AliantAssignmentService(IHttpClientFactory httpClientFactor
 
             var url = $"{BaseUrl}/job.php?job_id={id}";
             var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
-            results.Add((id, url, title));
+            results.Add((id, url, title, ""));
         }
         return results;
     }

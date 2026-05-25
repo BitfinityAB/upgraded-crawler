@@ -29,5 +29,6 @@ public class MissPrymAssignmentServiceTests(SqliteTestFixture fixture) : IClassF
         Assert.Equal("mp-001", result.First().AssignmentId);
         Assert.Equal("https://hint.missprym.com/job-posting/mp-001", result.First().Url);
         Assert.Equal("MissPrym Test Assignment", result.First().Title);
+        Assert.Equal("Detailed MissPrym description.", result.First().Description);
     }
 }
