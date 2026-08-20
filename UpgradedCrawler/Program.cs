@@ -183,13 +183,34 @@ try
                     ? await descFetcher.FetchAsync(ann.Url)
                     : ann.Description;
 
-                logger.Log($"Phase 2: analyzing '{ann.Title}'...");
-                var analysis = await analyzer.AnalyzeAsync(ann, description, profileText, feedback);
-                await analysisRepo.SaveAsync(analysis);
+                logger.Log($"Phase 2: scoring '{ann.Title}'...");
+                var (score, reason) = await analyzer.ScoreAsync(ann, description, profileText, feedback);
 
-                var filename = await draftWriter.WriteAsync(ann, analysis);
-                if (analysis.MatchScore >= matchingOpts.ScoreThreshold)
+                var analysis = new AssignmentAnalysis
+                {
+                    AssignmentId = ann.AssignmentId,
+                    ProviderId = ann.ProviderId,
+                    Description = description,
+                    MatchScore = score,
+                    MatchReason = reason,
+                    AnalyzedAt = DateTime.UtcNow
+                };
+
+                if (score >= matchingOpts.ScoreThreshold)
+                {
+                    logger.Log($"Phase 2: strong match ({score}/100) — generating drafts for '{ann.Title}'...");
+                    var (coldEmail, coverLetter) = await analyzer.GenerateDraftsAsync(ann, description, profileText, score, reason);
+                    analysis.ColdEmailDraft = coldEmail;
+                    analysis.CoverLetterDraft = coverLetter;
+                    await analysisRepo.SaveAsync(analysis);
+                    var filename = await draftWriter.WriteAsync(ann, analysis);
                     matchResults.Add(new MatchResult(ann, analysis, filename));
+                }
+                else
+                {
+                    logger.Log($"Phase 2: weak match ({score}/100) — skipping drafts for '{ann.Title}'.");
+                    await analysisRepo.SaveAsync(analysis);
+                }
             }
 
             if (matchResults.Count > 0)

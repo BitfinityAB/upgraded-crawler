@@ -27,7 +27,8 @@ public class TitlePreFilter(IAiTextClient aiClient, ILogging logging)
 
         var titleList = string.Join("\n", assignments.Select((a, i) => $"{i}. {a.Title}"));
 
-        var json = await aiClient.CompleteAsync("claude-haiku-4-5-20251001", systemPrompt, titleList, maxTokens: 256);
+        var raw = await aiClient.CompleteAsync("claude-haiku-4-5-20251001", systemPrompt, titleList, maxTokens: 256);
+        var json = StripCodeFence(raw);
 
         try
         {
@@ -43,6 +44,17 @@ public class TitlePreFilter(IAiTextClient aiClient, ILogging logging)
             logging.Log($"TitlePreFilter: could not parse response: {ex.Message}. Including all {assignments.Count} assignment(s).");
             return Enumerable.Range(0, assignments.Count).ToHashSet();
         }
+    }
+
+    private static string StripCodeFence(string text)
+    {
+        var trimmed = text.Trim();
+        if (!trimmed.StartsWith('`')) return trimmed;
+        var firstNewline = trimmed.IndexOf('\n');
+        if (firstNewline < 0) return trimmed;
+        var body = trimmed[(firstNewline + 1)..];
+        var lastFence = body.LastIndexOf("```", StringComparison.Ordinal);
+        return lastFence >= 0 ? body[..lastFence].Trim() : body.Trim();
     }
 
     private static string BuildPromptWithFeedback(IReadOnlyList<FeedbackEntry> feedback)

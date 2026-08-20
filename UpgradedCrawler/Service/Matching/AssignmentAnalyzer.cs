@@ -9,23 +9,33 @@ public class AssignmentAnalyzer(IAiTextClient aiClient, ILogging logging)
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    private const string SystemPrompt = """
+    private const string ScoreSystemPrompt = """
         You are a career advisor helping a senior .NET/fullstack developer find consulting
         assignments in Sweden. You will receive the user's profile and an assignment description.
-        Analyze the match and write application materials in Swedish.
+        Analyze the match quality.
 
-        Return JSON:
+        Return JSON only:
         {
           "score": <integer 0-100>,
-          "reason": "<2-3 sentences in English explaining the match score>",
-          "cold_email": "<complete cold email in Swedish, addressed to the staffing company>",
-          "cover_letter": "<complete cover letter (personligt brev) in Swedish>"
+          "reason": "<2-3 sentences in English explaining the match score>"
         }
 
         Score guide: 80-100 = strong match, 60-79 = decent match, below 60 = weak match.
         """;
 
-    public async Task<AssignmentAnalysis> AnalyzeAsync(
+    private const string DraftSystemPrompt = """
+        You are a career advisor helping a senior .NET/fullstack developer apply for consulting
+        assignments in Sweden. You will receive the user's profile, an assignment description,
+        and a match analysis. Write application materials in Swedish.
+
+        Return JSON only:
+        {
+          "cold_email": "<complete cold email in Swedish, addressed to the staffing company>",
+          "cover_letter": "<complete cover letter (personligt brev) in Swedish>"
+        }
+        """;
+
+    public async Task<(int Score, string Reason)> ScoreAsync(
         AssignmentAnnouncement announcement,
         string description,
         string profileText,
@@ -45,36 +55,67 @@ public class AssignmentAnalyzer(IAiTextClient aiClient, ILogging logging)
             {feedbackSection}
             """;
 
-        var json = await aiClient.CompleteAsync("claude-sonnet-4-6", SystemPrompt, userMessage, maxTokens: 4000);
+        var raw = await aiClient.CompleteAsync("claude-sonnet-4-6", ScoreSystemPrompt, userMessage, maxTokens: 512);
+        var json = StripCodeFence(raw);
 
         try
         {
-            var parsed = JsonSerializer.Deserialize<AnalysisResponse>(json, JsonOpts)!;
-            return new AssignmentAnalysis
-            {
-                AssignmentId = announcement.AssignmentId,
-                ProviderId = announcement.ProviderId,
-                Description = description,
-                MatchScore = parsed.Score,
-                MatchReason = parsed.Reason ?? string.Empty,
-                ColdEmailDraft = parsed.ColdEmail ?? string.Empty,
-                CoverLetterDraft = parsed.CoverLetter ?? string.Empty,
-                AnalyzedAt = DateTime.UtcNow
-            };
+            var parsed = JsonSerializer.Deserialize<ScoreResponse>(json, JsonOpts)!;
+            return (parsed.Score, parsed.Reason ?? string.Empty);
         }
         catch (Exception ex)
         {
-            logging.Log($"AssignmentAnalyzer: failed to parse response for '{announcement.AssignmentId}': {ex.Message}");
-            return new AssignmentAnalysis
-            {
-                AssignmentId = announcement.AssignmentId,
-                ProviderId = announcement.ProviderId,
-                Description = description,
-                MatchScore = -1,
-                MatchReason = "Analysis failed",
-                AnalyzedAt = DateTime.UtcNow
-            };
+            logging.Log($"AssignmentAnalyzer: failed to parse score response for '{announcement.AssignmentId}': {ex.Message}");
+            return (-1, "Analysis failed");
         }
+    }
+
+    public async Task<(string ColdEmail, string CoverLetter)> GenerateDraftsAsync(
+        AssignmentAnnouncement announcement,
+        string description,
+        string profileText,
+        int score,
+        string reason)
+    {
+        var userMessage = $"""
+            === My Profile ===
+            {profileText}
+
+            === Assignment ===
+            Title: {announcement.Title}
+            URL: {announcement.Url}
+
+            {description}
+
+            === Match Analysis ===
+            Score: {score}/100
+            {reason}
+            """;
+
+        var raw = await aiClient.CompleteAsync("claude-sonnet-4-6", DraftSystemPrompt, userMessage, maxTokens: 4000);
+        var json = StripCodeFence(raw);
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<DraftResponse>(json, JsonOpts)!;
+            return (parsed.ColdEmail ?? string.Empty, parsed.CoverLetter ?? string.Empty);
+        }
+        catch (Exception ex)
+        {
+            logging.Log($"AssignmentAnalyzer: failed to parse draft response for '{announcement.AssignmentId}': {ex.Message}");
+            return (string.Empty, string.Empty);
+        }
+    }
+
+    private static string StripCodeFence(string text)
+    {
+        var trimmed = text.Trim();
+        if (!trimmed.StartsWith('`')) return trimmed;
+        var firstNewline = trimmed.IndexOf('\n');
+        if (firstNewline < 0) return trimmed;
+        var body = trimmed[(firstNewline + 1)..];
+        var lastFence = body.LastIndexOf("```", StringComparison.Ordinal);
+        return lastFence >= 0 ? body[..lastFence].Trim() : body.Trim();
     }
 
     private static string BuildFeedbackSection(IReadOnlyList<FeedbackEntry> feedback)
@@ -84,10 +125,14 @@ public class AssignmentAnalyzer(IAiTextClient aiClient, ILogging logging)
     }
 }
 
-internal class AnalysisResponse
+internal class ScoreResponse
 {
     [JsonPropertyName("score")] public int Score { get; set; }
     [JsonPropertyName("reason")] public string? Reason { get; set; }
+}
+
+internal class DraftResponse
+{
     [JsonPropertyName("cold_email")] public string? ColdEmail { get; set; }
     [JsonPropertyName("cover_letter")] public string? CoverLetter { get; set; }
 }

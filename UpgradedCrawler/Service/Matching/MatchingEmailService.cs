@@ -40,7 +40,7 @@ public class MatchingEmailService(IOptions<MailgunOptions> mailgunOptions)
 
         foreach (var match in sortedMatches)
         {
-            lines.Add($"Title: {match.Announcement.Title}");
+            lines.Add($"Title: {match.Announcement.Title} — Score: {match.Analysis.MatchScore}/100");
             lines.Add($"Provider: {match.Announcement.ProviderId}");
             lines.Add($"URL: {match.Announcement.Url}");
             lines.Add($"Why: {match.Analysis.MatchReason}");
