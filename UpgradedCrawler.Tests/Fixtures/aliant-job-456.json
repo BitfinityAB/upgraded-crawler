@@ -1,0 +1,9 @@
+{
+  "statusCode": 200,
+  "data": {
+    "ad": {
+      "AdID": 456,
+      "Body": "<p>Aliant test assignment description.</p>"
+    }
+  }
+}
