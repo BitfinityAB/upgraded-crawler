@@ -4,10 +4,25 @@ Simple .NET console app for monitoring the assignments on Upgraded People's webs
 
 ## Usage
 
+### Production (Hetzner)
+
+The app runs hourly on a systemd timer on the Hetzner server. Deployment is automatic via
+`.github/workflows/deploy.yml` on every push to `main`. See
+`docs/superpowers/specs/2026-09-01-hetzner-deployment-design.md` for the full setup
+(OneDrive sync, systemd units, one-time secrets/data migration).
+
+To check status on the server:
+```bash
+systemctl status upgraded-crawler.timer
+journalctl --unit=upgraded-crawler -f
+```
+
+### Local development
+
 1. Compile the app using `dotnet build` command.
 2. Copy `appsettings.local.template.json` to `appsettings.local.json` and fill in your configuration values.
-3. For macOS: read [here](https://alvinalexander.com/mac-os-x/mac-osx-startup-crontab-launchd-jobs/) about creating plist files for `launchctl`. Create a file in the location suitable for you.
-   For Windows: schedule the program to run every hour in Windows Task Scheduler.
+3. Run manually with `dotnet run --project UpgradedCrawler -- --force` (the `--force` flag bypasses
+   the working-hours gate, useful for local testing).
 
 Recommended to run the script every hour at most frequent to avoid being blacklisted from the service.
 

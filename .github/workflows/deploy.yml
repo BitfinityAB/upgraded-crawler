@@ -1,0 +1,54 @@
+name: Deploy UpgradedCrawler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "UpgradedCrawler/**"
+      - "UpgradedCrawler.Core/**"
+      - "deploy/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish self-contained binary
+        run: |
+          dotnet publish UpgradedCrawler/UpgradedCrawler.csproj -c Release -r linux-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_CRAWLER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync binary + config to VPS
+        run: |
+          rsync -az --delete \
+            --exclude 'appsettings.local.json' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            publish/ "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/opt/upgraded-crawler/"
+
+      - name: Install systemd units and restart timer
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy/upgraded-crawler.service deploy/upgraded-crawler.timer \
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
+            "sudo mv /tmp/upgraded-crawler.service /tmp/upgraded-crawler.timer /etc/systemd/system/ && \
+             sudo systemctl daemon-reload && \
+             sudo systemctl enable --now upgraded-crawler.timer"
