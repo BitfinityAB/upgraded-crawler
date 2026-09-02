@@ -1,0 +1,9 @@
+[Unit]
+Description=UpgradedCrawler assignment crawl + AI matching
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/upgraded-crawler
+ExecStart=/opt/upgraded-crawler/UpgradedCrawler
