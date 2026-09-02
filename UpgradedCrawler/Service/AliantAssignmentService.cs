@@ -1,78 +1,133 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using HtmlAgilityPack;
-using UpgradedCrawler.Core.Data;
-using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Helpers;
 
-namespace UpgradedCrawler.Service
+namespace UpgradedCrawler.Service;
+
+public partial class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging)
+    : AssignmentServiceBase(httpClientFactory, logging)
 {
-    public partial class AliantAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
+    private const string BaseUrl = "https://aliant.recman.io";
+    private const string CsrfTokenPattern = "name=\"csrf-token\"\\s+content=\"(?<token>[^\"]+)\"";
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    protected override string ProviderId => "aliant";
+
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
-        private const string providerId = "aliant";
-        private const string baseUrl = "https://aliant.recman.se";
+        var httpClient = _httpClientFactory.CreateClient();
 
-        private const string jobIdPattern = @"job_id=(\d+)";
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-        private readonly ILogging _logging = logging;
-
-        public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
+        var csrfToken = await GetCsrfTokenAsync(httpClient);
+        if (string.IsNullOrEmpty(csrfToken))
         {
-            var httpClient = _httpClientFactory.CreateClient();
-            var newAssignments = new List<AssignmentAnnouncement>();
-            var response = await httpClient.GetAsync($"{baseUrl}/index.php");
-            response.EnsureSuccessStatusCode();
-            var responseString = await response.Content.ReadAsStringAsync();
-
-            // Load HTML content directly into HtmlAgilityPack for parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(responseString);
-
-            // Extract and display table data
-            var rows = htmlDoc.DocumentNode.SelectSingleNode("//div[contains(@id, 'job-post-listing-box')]");
-
-            if (rows == null)
-            {
-                _logging.Log("No data rows found in the table.");
-                return Array.Empty<AssignmentAnnouncement>();
-            }
-
-            // Collect current website assignment IDs while processing new assignments
-            var currentWebsiteIds = new HashSet<string>();
-
-            foreach (var row in rows.ChildNodes)
-            {
-                if (row.Name != "div") continue;
-                var jobIdMatches = MyRegex().Match(row.Attributes["onclick"].Value);
-                var id = jobIdMatches.Success ? jobIdMatches.Groups[1].Value : "";
-                if (string.IsNullOrEmpty(id)) continue;
-
-                // Track current website IDs for cleanup
-                currentWebsiteIds.Add(id);
-
-                var url = $"{baseUrl}/job.php?job_id={id}";
-                var title = row.SelectSingleNode("./div/table/tr/td[2]/span")?.InnerText.Trim() ?? "";
-                if (!dbContext.Assignments.Any(r => r.AssignmentId == id && r.ProviderId == providerId))
-                {
-                    newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
-                }
-            }
-
-            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
-            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
-
-            // Add new assignments
-            foreach (var assignment in newAssignments)
-            {
-                dbContext.Assignments.Add(assignment);
-            }
-
-            await dbContext.SaveChangesAsync();
-
-            return newAssignments;
+            _logging.Log("Aliant: CSRF token not found.");
+            return [];
         }
 
-        [GeneratedRegex(jobIdPattern)]
-        private static partial Regex MyRegex();
+        var jobPosts = await GetJobPostsAsync(httpClient, csrfToken);
+        if (jobPosts is null || jobPosts.Count == 0)
+        {
+            _logging.Log("Aliant: no assignments in API response.");
+            return [];
+        }
+
+        var results = new List<(string, string, string, string)>();
+        foreach (var post in jobPosts)
+        {
+            var id = post.AdId.ToString();
+            var url = $"{BaseUrl}/jobs/{id}";
+            var title = post.Name ?? "";
+            var description = await GetJobDescriptionAsync(httpClient, csrfToken, id);
+            results.Add((id, url, title, description));
+        }
+        return results;
     }
+
+    private async Task<string> GetCsrfTokenAsync(HttpClient httpClient)
+    {
+        var response = await httpClient.GetAsync($"{BaseUrl}/jobs?sort=newest");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        var match = CsrfTokenRegex().Match(html);
+        return match.Success ? match.Groups["token"].Value : "";
+    }
+
+    private static async Task<List<AliantJobPost>?> GetJobPostsAsync(HttpClient httpClient, string csrfToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/api/jobs?sort=newest");
+        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+        var response = await httpClient.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        var payload = JsonSerializer.Deserialize<AliantJobsResponse>(json, JsonOptions);
+        return payload?.Data?.JobPosts;
+    }
+
+    private async Task<string> GetJobDescriptionAsync(HttpClient httpClient, string csrfToken, string id)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/api/job/{id}");
+            request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+            var response = await httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logging.Log($"Aliant: HTTP {(int)response.StatusCode} fetching description for job {id}.");
+                return "";
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var payload = JsonSerializer.Deserialize<AliantJobDetailResponse>(json, JsonOptions);
+            return payload?.Data?.Ad?.Body ?? "";
+        }
+        catch (Exception ex)
+        {
+            _logging.Log($"Aliant: failed to fetch description for job {id}: {ex.Message}");
+            return "";
+        }
+    }
+
+    [GeneratedRegex(CsrfTokenPattern)]
+    private static partial Regex CsrfTokenRegex();
+}
+
+internal class AliantJobsResponse
+{
+    [JsonPropertyName("data")]
+    public AliantJobsData? Data { get; set; }
+}
+
+internal class AliantJobsData
+{
+    [JsonPropertyName("job_posts")]
+    public List<AliantJobPost>? JobPosts { get; set; }
+}
+
+internal class AliantJobPost
+{
+    [JsonPropertyName("AdID")]
+    public int AdId { get; set; }
+
+    [JsonPropertyName("Name")]
+    public string? Name { get; set; }
+}
+
+internal class AliantJobDetailResponse
+{
+    [JsonPropertyName("data")]
+    public AliantJobDetailData? Data { get; set; }
+}
+
+internal class AliantJobDetailData
+{
+    [JsonPropertyName("ad")]
+    public AliantJobAd? Ad { get; set; }
+}
+
+internal class AliantJobAd
+{
+    [JsonPropertyName("Body")]
+    public string? Body { get; set; }
 }

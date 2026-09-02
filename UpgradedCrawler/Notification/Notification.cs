@@ -21,7 +21,7 @@ namespace UpgradedCrawler
             };
 
             using var proc = Process.Start(process);
-            proc.WaitForExit();
+            proc?.WaitForExit();
         }
     }
 }

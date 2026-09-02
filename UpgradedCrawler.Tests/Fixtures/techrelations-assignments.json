@@ -1,0 +1,15 @@
+[
+  {
+    "id": 999,
+    "link": "https://admin.techrelations.se/assignments/999",
+    "title": {"rendered": "TechRelations Test Assignment"},
+    "content": {"rendered": "Detailed TechRelations description."},
+    "acf": {"assigned": false}
+  },
+  {
+    "id": 998,
+    "link": "https://admin.techrelations.se/assignments/998",
+    "title": {"rendered": "Already Assigned"},
+    "acf": {"assigned": true}
+  }
+]

@@ -1,83 +1,56 @@
-using System.Text.RegularExpressions;
 using HtmlAgilityPack;
-using UpgradedCrawler.Core.Data;
-using UpgradedCrawler.Core.Entities;
 using UpgradedCrawler.Core.Interfaces;
-using UpgradedCrawler.Helpers;
 
-namespace UpgradedCrawler.Service
+namespace UpgradedCrawler.Service;
+
+public class TeamPilotAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging)
+    : AssignmentServiceBase(httpClientFactory, logging)
 {
-    public class TeamPilotAssignmentService(IHttpClientFactory httpClientFactory, ILogging logging) : IAssignmentService
+    private const string BaseUrl = "https://app.teampilot.io";
+
+    protected override string ProviderId => "teampilot";
+
+    protected override async Task<IEnumerable<(string id, string url, string title, string description)>> FetchAssignmentsAsync()
     {
-        private const string providerId = "teampilot";
-        private const string baseUrl = "https://app.teampilot.io";
+        var httpClient = _httpClientFactory.CreateClient();
+        var response = await httpClient.GetAsync($"{BaseUrl}/jobs");
+        response.EnsureSuccessStatusCode();
+        var responseString = await response.Content.ReadAsStringAsync();
 
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-        private readonly ILogging _logging = logging;
+        var htmlDoc = new HtmlDocument();
+        htmlDoc.LoadHtml(responseString);
 
-        public async Task<ICollection<AssignmentAnnouncement>> GetAssignmentAnnouncementsAsync(AppDbContext dbContext)
+        var activeHeader = htmlDoc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Active Positions')]");
+        if (activeHeader is null)
         {
-            var httpClient = _httpClientFactory.CreateClient();
-            var newAssignments = new List<AssignmentAnnouncement>();
-            var response = await httpClient.GetAsync($"{baseUrl}/jobs");
-            response.EnsureSuccessStatusCode();
-            var responseString = await response.Content.ReadAsStringAsync();
-
-            // Load HTML content directly into HtmlAgilityPack for parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(responseString);
-
-            // Find the H3 tag with "Active Positions" text
-            var activePositionsHeader = htmlDoc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Active Positions')]");
-            
-            if (activePositionsHeader == null)
-            {
-                _logging.Log("Active Positions header not found.");
-                return Array.Empty<AssignmentAnnouncement>();
-            }
-
-            // Get the div[@class='row'] that comes after "Active Positions" but before "Historical Positions"
-            var rows = activePositionsHeader.SelectSingleNode("following-sibling::div[@class='row' and following-sibling::h3[contains(text(), 'Historical Positions')]][1]");
-
-            if (rows == null)
-            {
-                _logging.Log("No data rows found under Active Positions.");
-                return Array.Empty<AssignmentAnnouncement>();
-            }
-
-            // Collect current website assignment IDs while processing new assignments
-            var currentWebsiteIds = new HashSet<string>();
-
-            foreach (var row in rows.ChildNodes)
-            {
-                if (row.Name != "div") continue;
-
-                var href = row.SelectSingleNode("./div/div[2]/div[contains(@class, 'd-grid')]/a").Attributes["href"].Value;
-                var url = baseUrl + href;
-                var id = href.Split("/job/")[1];
-                
-                // Track current website IDs for cleanup
-                currentWebsiteIds.Add(id);
-
-                var title = row.SelectSingleNode("./div/div[2]/h5")?.InnerText.Trim() ?? "";
-                if (!dbContext.Assignments.Any(r => r.AssignmentId == id && r.ProviderId == providerId))
-                {
-                    newAssignments.Add(new AssignmentAnnouncement(id, url, providerId, title, DateTime.Now));
-                }
-            }
-
-            // Cleanup: Remove assignments that are 30+ days old and not on the website anymore
-            AssignmentCleanupHelper.CleanupOldAssignments(dbContext, providerId, currentWebsiteIds, _logging);
-
-            foreach (var assignment in newAssignments)
-            {
-                dbContext.Assignments.Add(assignment);
-            }
-
-            await dbContext.SaveChangesAsync();
-
-            return newAssignments;
+            _logging.Log("TeamPilot: Active Positions header not found.");
+            return [];
         }
 
+        var rows = activeHeader.SelectSingleNode(
+            "following-sibling::div[@class='row' and following-sibling::h3[contains(text(), 'Historical Positions')]][1]");
+        if (rows is null)
+        {
+            _logging.Log("TeamPilot: no rows found under Active Positions.");
+            return [];
+        }
+
+        var results = new List<(string, string, string, string)>();
+        foreach (var row in rows.ChildNodes)
+        {
+            if (row.Name != "div") continue;
+
+            var href = row.SelectSingleNode("./div/div[2]/div[contains(@class, 'd-grid')]/a")
+                          ?.Attributes["href"]?.Value;
+            if (href is null) continue;
+
+            var id = href.Split("/job/").ElementAtOrDefault(1) ?? "";
+            if (string.IsNullOrEmpty(id)) continue;
+
+            var url = BaseUrl + href;
+            var title = row.SelectSingleNode("./div/div[2]/h5")?.InnerText.Trim() ?? "";
+            results.Add((id, url, title, ""));
+        }
+        return results;
     }
 }

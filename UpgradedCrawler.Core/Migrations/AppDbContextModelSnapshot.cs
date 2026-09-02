@@ -15,7 +15,52 @@ namespace UpgradedCrawler.Core.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.6");
+
+            modelBuilder.Entity("UpgradedCrawler.Core.Entities.AssignmentAnalysis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AnalyzedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssignmentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ColdEmailDraft")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CoverLetterDraft")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MatchReason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MatchScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProviderId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignmentId", "ProviderId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AssignmentAnalyses_AssignmentId_ProviderId");
+
+                    b.ToTable("AssignmentAnalyses");
+                });
 
             modelBuilder.Entity("UpgradedCrawler.Core.Entities.AssignmentAnnouncement", b =>
                 {

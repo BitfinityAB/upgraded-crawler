@@ -6,8 +6,8 @@ namespace UpgradedCrawler.Core.Data;
 public class AppDbContext : DbContext
 {
     public DbSet<AssignmentAnnouncement>? Assignments { get; set; }
-
-    public string DbPath { get; }
+    public DbSet<AssignmentAnalysis>? AssignmentAnalyses { get; set; }
+    public string DbPath { get; private set; }
 
     public AppDbContext()
     {
@@ -16,8 +16,16 @@ public class AppDbContext : DbContext
         DbPath = Path.Join(path, "assignments.db");
     }
 
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    {
+        DbPath = string.Empty;
+    }
+
     protected override void OnConfiguring(DbContextOptionsBuilder options)
-        => options.UseSqlite($"Data Source={DbPath}");
+    {
+        if (!options.IsConfigured)
+            options.UseSqlite($"Data Source={DbPath}");
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,11 +33,18 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedOnAdd();
-            
-            // Ensure AssignmentId + ProviderId combination is unique
             entity.HasIndex(e => new { e.AssignmentId, e.ProviderId })
                   .IsUnique()
                   .HasDatabaseName("IX_Assignments_AssignmentId_ProviderId");
+        });
+
+        modelBuilder.Entity<AssignmentAnalysis>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            entity.HasIndex(e => new { e.AssignmentId, e.ProviderId })
+                  .IsUnique()
+                  .HasDatabaseName("IX_AssignmentAnalyses_AssignmentId_ProviderId");
         });
     }
 }

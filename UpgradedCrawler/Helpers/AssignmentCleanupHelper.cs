@@ -20,16 +20,16 @@ namespace UpgradedCrawler.Helpers
             ILogging logging)
         {
             var cutoffDate = DateTime.Now.AddDays(-30);
-            var assignmentsToDelete = dbContext.Assignments
-                .Where(a => a.ProviderId == providerId 
-                           && a.CreatedAt <= cutoffDate 
+            var assignmentsToDelete = dbContext.Assignments!
+                .Where(a => a.ProviderId == providerId
+                           && a.CreatedAt <= cutoffDate
                            && !currentWebsiteIds.Contains(a.AssignmentId))
                 .ToList();
 
             var deletedCount = assignmentsToDelete.Count;
             if (deletedCount > 0)
             {
-                dbContext.Assignments.RemoveRange(assignmentsToDelete);
+                dbContext.Assignments!.RemoveRange(assignmentsToDelete);
                 logging.Log($"Cleaned up {deletedCount} old assignments for provider {providerId}");
             }
 
