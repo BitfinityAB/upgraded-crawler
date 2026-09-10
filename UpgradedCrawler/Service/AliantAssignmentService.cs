@@ -36,7 +36,7 @@ public partial class AliantAssignmentService(IHttpClientFactory httpClientFactor
         foreach (var post in jobPosts)
         {
             var id = post.AdId.ToString();
-            var url = $"{BaseUrl}/jobs/{id}";
+            var url = $"{BaseUrl}/job/{id}";
             var title = post.Name ?? "";
             var description = await GetJobDescriptionAsync(httpClient, csrfToken, id);
             results.Add((id, url, title, description));

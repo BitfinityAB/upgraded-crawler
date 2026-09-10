@@ -38,7 +38,7 @@ public class AliantAssignmentServiceTests(SqliteTestFixture fixture) : IClassFix
 
         Assert.Single(result);
         Assert.Equal("456", result.First().AssignmentId);
-        Assert.Equal("https://aliant.recman.io/jobs/456", result.First().Url);
+        Assert.Equal("https://aliant.recman.io/job/456", result.First().Url);
         Assert.Equal("Aliant Test Assignment", result.First().Title);
         Assert.Equal("<p>Aliant test assignment description.</p>", result.First().Description);
     }
