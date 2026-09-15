@@ -13,11 +13,12 @@ using UpgradedCrawler.Service.Matching;
 
 var forceRun = args.Contains("-f") || args.Contains("--force");
 var logToEventLog = args.Contains("-e") || args.Contains("--eventlog");
+var rematchBacklog = args.Contains("--rematch-backlog");
 var logger = new Logging(logToEventLog);
 
 try
 {
-    if (!forceRun && !IsWorkingHour())
+    if (!forceRun && !rematchBacklog && !IsWorkingHour())
     {
         logger.Log("Not working hours. Exiting.");
         return;
@@ -80,42 +81,50 @@ try
     var emailService = host.Services.GetRequiredService<IEmailService>();
     var newAssignments = new List<AssignmentAnnouncement>();
 
-    foreach (var provider in providers)
+    if (rematchBacklog)
     {
-        var service = host.Services.GetKeyedService<IAssignmentService>(provider);
-        if (service is null)
-        {
-            logger.Log($"Warning: unknown provider '{provider}' in config. Skipping.");
-            continue;
-        }
-
-        logger.Log($"Fetching assignments from '{provider}'...");
-        try
-        {
-            var found = await service.GetAssignmentAnnouncementsAsync(db);
-            logger.Log($"'{provider}': {found.Count} new assignment(s).");
-            newAssignments.AddRange(found);
-        }
-        catch (Exception ex)
-        {
-            logger.Log($"'{provider}' error: {ex.Message}");
-        }
-    }
-
-    if (newAssignments.Count > 0)
-    {
-        var suffix = newAssignments.Count == 1 ? "" : "s";
-        await emailService.SendEmail(
-            mailgunOpts.FromAddress,
-            mailgunOpts.FromName,
-            mailgunOpts.To,
-            $"New Assignment Announcement{suffix} on Upgraded People",
-            newAssignments);
-        logger.Log($"Sent email for {newAssignments.Count} new record{suffix}.");
+        newAssignments = await db.Assignments!.AsNoTracking().ToListAsync();
+        logger.Log($"Rematch backlog mode: loaded {newAssignments.Count} assignment(s) from the database (skipping provider fetch and announcement email).");
     }
     else
     {
-        logger.Log("No new records found.");
+        foreach (var provider in providers)
+        {
+            var service = host.Services.GetKeyedService<IAssignmentService>(provider);
+            if (service is null)
+            {
+                logger.Log($"Warning: unknown provider '{provider}' in config. Skipping.");
+                continue;
+            }
+
+            logger.Log($"Fetching assignments from '{provider}'...");
+            try
+            {
+                var found = await service.GetAssignmentAnnouncementsAsync(db);
+                logger.Log($"'{provider}': {found.Count} new assignment(s).");
+                newAssignments.AddRange(found);
+            }
+            catch (Exception ex)
+            {
+                logger.Log($"'{provider}' error: {ex.Message}");
+            }
+        }
+
+        if (newAssignments.Count > 0)
+        {
+            var suffix = newAssignments.Count == 1 ? "" : "s";
+            await emailService.SendEmail(
+                mailgunOpts.FromAddress,
+                mailgunOpts.FromName,
+                mailgunOpts.To,
+                $"New Assignment Announcement{suffix} on Upgraded People",
+                newAssignments);
+            logger.Log($"Sent email for {newAssignments.Count} new record{suffix}.");
+        }
+        else
+        {
+            logger.Log("No new records found.");
+        }
     }
 
     var matchingEnabledForRun = matchingOpts.Enabled;

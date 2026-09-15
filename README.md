@@ -17,6 +17,14 @@ systemctl status upgraded-crawler.timer
 journalctl --unit=upgraded-crawler -f
 ```
 
+If AI matching was misconfigured for a while (e.g. a missing `Matching.ProfileFolder`) and assignments
+piled up unanalyzed, run a one-off backfill once the config is fixed. This loads every assignment
+already stored in the database, skips fetching/announcement email, and runs Phase 2 matching only on
+the ones without an analysis record yet:
+```bash
+sudo -u deploy /opt/upgraded-crawler/UpgradedCrawler --rematch-backlog
+```
+
 ### Local development
 
 1. Compile the app using `dotnet build` command.
