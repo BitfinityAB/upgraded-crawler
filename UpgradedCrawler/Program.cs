@@ -70,15 +70,6 @@ try
         throw new InvalidOperationException("MissPrym ApiKey is not configured in appsettings.");
 
     var matchingOpts = host.Services.GetRequiredService<IOptions<MatchingOptions>>().Value;
-    if (matchingOpts.Enabled)
-    {
-        if (string.IsNullOrWhiteSpace(matchingOpts.AnthropicApiKey))
-            throw new InvalidOperationException("Matching.AnthropicApiKey is not configured.");
-        if (string.IsNullOrWhiteSpace(matchingOpts.DraftsFolder))
-            throw new InvalidOperationException("Matching.DraftsFolder is not configured.");
-        if (!Directory.Exists(matchingOpts.ProfileFolder))
-            throw new InvalidOperationException($"Matching.ProfileFolder '{matchingOpts.ProfileFolder}' does not exist.");
-    }
 
     var db = host.Services.GetRequiredService<AppDbContext>();
     await db.Database.EnsureCreatedAsync();
@@ -127,101 +118,128 @@ try
         logger.Log("No new records found.");
     }
 
-    if (matchingOpts.Enabled && newAssignments.Count > 0)
+    var matchingEnabledForRun = matchingOpts.Enabled;
+    if (matchingEnabledForRun)
     {
-        logger.Log($"Phase 2: analyzing {newAssignments.Count} new assignment(s)...");
-
-        var aiClient = new AnthropicTextClient(matchingOpts.AnthropicApiKey);
-        var profileLoader = new ProfileLoader(matchingOpts, logger);
-        var feedbackLoader = new FeedbackLoader(matchingOpts.DraftsFolder);
-        var descFetcher = new DescriptionFetcher(host.Services.GetRequiredService<IHttpClientFactory>(), logger);
-        var titleFilter = new TitlePreFilter(aiClient, logger);
-        var analyzer = new AssignmentAnalyzer(aiClient, logger);
-        var draftWriter = new DraftFileWriter(matchingOpts.DraftsFolder);
-        var matchingEmail = new MatchingEmailService(host.Services.GetRequiredService<IOptions<MailgunOptions>>());
-        var analysisRepo = new AssignmentAnalysisRepository(db);
-
-        draftWriter.EnsureFolderStructure();
-
-        var profileText = await profileLoader.LoadAsync();
-        var feedback = await feedbackLoader.LoadAsync();
-
-        var unanalyzed = newAssignments
-            .Where(a => !analysisRepo.IsAnalyzed(a.AssignmentId, a.ProviderId))
-            .ToList();
-
-        if (unanalyzed.Count == 0)
+        if (string.IsNullOrWhiteSpace(matchingOpts.AnthropicApiKey))
         {
-            logger.Log("Phase 2: all new assignments already analyzed.");
+            logger.Log("Matching skipped for this run: Matching.AnthropicApiKey is not configured.");
+            matchingEnabledForRun = false;
         }
-        else
+        else if (string.IsNullOrWhiteSpace(matchingOpts.DraftsFolder))
         {
-            logger.Log($"Phase 2: pre-filtering {unanalyzed.Count} title(s) via Haiku...");
-            var relevantIndices = await titleFilter.FilterAsync(unanalyzed, feedback);
+            logger.Log("Matching skipped for this run: Matching.DraftsFolder is not configured.");
+            matchingEnabledForRun = false;
+        }
+        else if (!Directory.Exists(matchingOpts.ProfileFolder))
+        {
+            logger.Log($"Matching skipped for this run: Matching.ProfileFolder '{matchingOpts.ProfileFolder}' does not exist.");
+            matchingEnabledForRun = false;
+        }
+    }
 
-            foreach (var (idx, ann) in unanalyzed.Select((a, i) => (i, a)))
+    if (matchingEnabledForRun && newAssignments.Count > 0)
+    {
+        try
+        {
+            logger.Log($"Phase 2: analyzing {newAssignments.Count} new assignment(s)...");
+
+            var aiClient = new AnthropicTextClient(matchingOpts.AnthropicApiKey);
+            var profileLoader = new ProfileLoader(matchingOpts, logger);
+            var feedbackLoader = new FeedbackLoader(matchingOpts.DraftsFolder);
+            var descFetcher = new DescriptionFetcher(host.Services.GetRequiredService<IHttpClientFactory>(), logger);
+            var titleFilter = new TitlePreFilter(aiClient, logger);
+            var analyzer = new AssignmentAnalyzer(aiClient, logger);
+            var draftWriter = new DraftFileWriter(matchingOpts.DraftsFolder);
+            var matchingEmail = new MatchingEmailService(host.Services.GetRequiredService<IOptions<MailgunOptions>>());
+            var analysisRepo = new AssignmentAnalysisRepository(db);
+
+            draftWriter.EnsureFolderStructure();
+
+            var profileText = await profileLoader.LoadAsync();
+            var feedback = await feedbackLoader.LoadAsync();
+
+            var unanalyzed = newAssignments
+                .Where(a => !analysisRepo.IsAnalyzed(a.AssignmentId, a.ProviderId))
+                .ToList();
+
+            if (unanalyzed.Count == 0)
             {
-                if (relevantIndices.Contains(idx)) continue;
-                await analysisRepo.SaveAsync(new AssignmentAnalysis
-                {
-                    AssignmentId = ann.AssignmentId,
-                    ProviderId = ann.ProviderId,
-                    MatchScore = 0,
-                    MatchReason = "Filtered by title pre-screen",
-                    AnalyzedAt = DateTime.UtcNow
-                });
-            }
-
-            var relevant = relevantIndices.Select(i => unanalyzed[i]).ToList();
-            logger.Log($"Phase 2: {relevant.Count} assignment(s) passed title filter. Running Sonnet analysis...");
-
-            var matchResults = new List<MatchResult>();
-
-            foreach (var ann in relevant)
-            {
-                var description = string.IsNullOrEmpty(ann.Description)
-                    ? await descFetcher.FetchAsync(ann.Url)
-                    : ann.Description;
-
-                logger.Log($"Phase 2: scoring '{ann.Title}'...");
-                var (score, reason) = await analyzer.ScoreAsync(ann, description, profileText, feedback);
-
-                var analysis = new AssignmentAnalysis
-                {
-                    AssignmentId = ann.AssignmentId,
-                    ProviderId = ann.ProviderId,
-                    Description = description,
-                    MatchScore = score,
-                    MatchReason = reason,
-                    AnalyzedAt = DateTime.UtcNow
-                };
-
-                if (score >= matchingOpts.ScoreThreshold)
-                {
-                    logger.Log($"Phase 2: strong match ({score}/100) — generating drafts for '{ann.Title}'...");
-                    var (coldEmail, coverLetter) = await analyzer.GenerateDraftsAsync(ann, description, profileText, score, reason);
-                    analysis.ColdEmailDraft = coldEmail;
-                    analysis.CoverLetterDraft = coverLetter;
-                    await analysisRepo.SaveAsync(analysis);
-                    var filename = await draftWriter.WriteAsync(ann, analysis);
-                    matchResults.Add(new MatchResult(ann, analysis, filename));
-                }
-                else
-                {
-                    logger.Log($"Phase 2: weak match ({score}/100) — skipping drafts for '{ann.Title}'.");
-                    await analysisRepo.SaveAsync(analysis);
-                }
-            }
-
-            if (matchResults.Count > 0)
-            {
-                await matchingEmail.SendAsync(matchResults, matchingOpts.DraftsFolder);
-                logger.Log($"Phase 2: sent match email for {matchResults.Count} strong match(es).");
+                logger.Log("Phase 2: all new assignments already analyzed.");
             }
             else
             {
-                logger.Log("Phase 2: no strong matches above threshold.");
+                logger.Log($"Phase 2: pre-filtering {unanalyzed.Count} title(s) via Haiku...");
+                var relevantIndices = await titleFilter.FilterAsync(unanalyzed, feedback);
+
+                foreach (var (idx, ann) in unanalyzed.Select((a, i) => (i, a)))
+                {
+                    if (relevantIndices.Contains(idx)) continue;
+                    await analysisRepo.SaveAsync(new AssignmentAnalysis
+                    {
+                        AssignmentId = ann.AssignmentId,
+                        ProviderId = ann.ProviderId,
+                        MatchScore = 0,
+                        MatchReason = "Filtered by title pre-screen",
+                        AnalyzedAt = DateTime.UtcNow
+                    });
+                }
+
+                var relevant = relevantIndices.Select(i => unanalyzed[i]).ToList();
+                logger.Log($"Phase 2: {relevant.Count} assignment(s) passed title filter. Running Sonnet analysis...");
+
+                var matchResults = new List<MatchResult>();
+
+                foreach (var ann in relevant)
+                {
+                    var description = string.IsNullOrEmpty(ann.Description)
+                        ? await descFetcher.FetchAsync(ann.Url)
+                        : ann.Description;
+
+                    logger.Log($"Phase 2: scoring '{ann.Title}'...");
+                    var (score, reason) = await analyzer.ScoreAsync(ann, description, profileText, feedback);
+
+                    var analysis = new AssignmentAnalysis
+                    {
+                        AssignmentId = ann.AssignmentId,
+                        ProviderId = ann.ProviderId,
+                        Description = description,
+                        MatchScore = score,
+                        MatchReason = reason,
+                        AnalyzedAt = DateTime.UtcNow
+                    };
+
+                    if (score >= matchingOpts.ScoreThreshold)
+                    {
+                        logger.Log($"Phase 2: strong match ({score}/100) — generating drafts for '{ann.Title}'...");
+                        var (coldEmail, coverLetter) = await analyzer.GenerateDraftsAsync(ann, description, profileText, score, reason);
+                        analysis.ColdEmailDraft = coldEmail;
+                        analysis.CoverLetterDraft = coverLetter;
+                        await analysisRepo.SaveAsync(analysis);
+                        var filename = await draftWriter.WriteAsync(ann, analysis);
+                        matchResults.Add(new MatchResult(ann, analysis, filename));
+                    }
+                    else
+                    {
+                        logger.Log($"Phase 2: weak match ({score}/100) — skipping drafts for '{ann.Title}'.");
+                        await analysisRepo.SaveAsync(analysis);
+                    }
+                }
+
+                if (matchResults.Count > 0)
+                {
+                    await matchingEmail.SendAsync(matchResults, matchingOpts.DraftsFolder);
+                    logger.Log($"Phase 2: sent match email for {matchResults.Count} strong match(es).");
+                }
+                else
+                {
+                    logger.Log("Phase 2: no strong matches above threshold.");
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            logger.Log($"Phase 2 error: {ex.Message}");
         }
     }
 
