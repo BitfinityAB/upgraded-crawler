@@ -18,6 +18,18 @@ var logger = new Logging(logToEventLog);
 
 try
 {
+    DateTime rematchSince = default;
+    if (rematchBacklog)
+    {
+        var sinceIndex = Array.IndexOf(args, "--since");
+        var sinceArg = sinceIndex >= 0 && sinceIndex + 1 < args.Length ? args[sinceIndex + 1] : null;
+        if (sinceArg is null || !DateTime.TryParse(sinceArg, out rematchSince))
+        {
+            logger.Log("--rematch-backlog requires --since <yyyy-MM-dd> to scope which assignments to reanalyze.");
+            return;
+        }
+    }
+
     if (!forceRun && !rematchBacklog && !IsWorkingHour())
     {
         logger.Log("Not working hours. Exiting.");
@@ -83,8 +95,10 @@ try
 
     if (rematchBacklog)
     {
-        newAssignments = await db.Assignments!.AsNoTracking().ToListAsync();
-        logger.Log($"Rematch backlog mode: loaded {newAssignments.Count} assignment(s) from the database (skipping provider fetch and announcement email).");
+        newAssignments = await db.Assignments!.AsNoTracking()
+            .Where(a => a.CreatedAt >= rematchSince)
+            .ToListAsync();
+        logger.Log($"Rematch backlog mode: loaded {newAssignments.Count} assignment(s) recorded since {rematchSince:yyyy-MM-dd HH:mm} (skipping provider fetch and announcement email).");
     }
     else
     {

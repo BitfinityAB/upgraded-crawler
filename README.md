@@ -18,11 +18,13 @@ journalctl --unit=upgraded-crawler -f
 ```
 
 If AI matching was misconfigured for a while (e.g. a missing `Matching.ProfileFolder`) and assignments
-piled up unanalyzed, run a one-off backfill once the config is fixed. This loads every assignment
-already stored in the database, skips fetching/announcement email, and runs Phase 2 matching only on
-the ones without an analysis record yet:
+piled up unanalyzed, run a one-off backfill once the config is fixed. `--since` is required and scopes
+the backfill to assignments recorded on/after that date, so it only reanalyzes the outage window instead
+of the whole history (the database may hold assignments from long before AI matching existed). This
+skips fetching/the announcement email and runs Phase 2 matching only on assignments in that window
+without an analysis record yet:
 ```bash
-sudo -u deploy /opt/upgraded-crawler/UpgradedCrawler --rematch-backlog
+sudo -u deploy /opt/upgraded-crawler/UpgradedCrawler --rematch-backlog --since 2026-09-10
 ```
 
 ### Local development
