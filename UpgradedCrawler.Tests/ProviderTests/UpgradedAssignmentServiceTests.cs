@@ -11,31 +11,43 @@ public class UpgradedAssignmentServiceTests(SqliteTestFixture fixture) : IClassF
 {
     private readonly SqliteTestFixture _fixture = fixture;
 
-    [Fact]
-    public async Task ParsesAssignmentFromFixture()
+    private static UpgradedAssignmentService CreateService(string pageHtml)
     {
-        using var db = _fixture.CreateContext();
-        var logging = Substitute.For<ILogging>();
-
         var handler = new FakeHttpMessageHandler(new Dictionary<string, HttpResponseMessage>
         {
             ["https://upgraded.se/lediga-uppdrag/"] =
-                new HttpResponseMessage(HttpStatusCode.OK)
-                { Content = new StringContent(TestFixtureLoader.Load("upgraded-nonce.html")) },
-            ["https://upgraded.se/wp-admin/admin-ajax.php"] =
-                new HttpResponseMessage(HttpStatusCode.OK)
-                { Content = new StringContent(TestFixtureLoader.Load("upgraded-assignments.json")) },
+                new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(pageHtml) },
         });
 
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(handler));
 
-        var service = new UpgradedAssignmentService(factory, logging);
-        var result = await service.GetAssignmentAnnouncementsAsync(db);
+        return new UpgradedAssignmentService(factory, Substitute.For<ILogging>());
+    }
 
-        Assert.Single(result);
-        Assert.Equal("JOB-001", result.First().AssignmentId);
-        Assert.Equal("https://upgraded.se/job/JOB-001", result.First().Url);
-        Assert.Equal("Upgraded Test Assignment", result.First().Title);
+    [Fact]
+    public async Task ParsesAssignmentsFromFixture()
+    {
+        using var db = _fixture.CreateContext();
+        var service = CreateService(TestFixtureLoader.Load("upgraded-page.html"));
+
+        var result = (await service.GetAssignmentAnnouncementsAsync(db)).ToList();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("172126", result[0].AssignmentId);
+        Assert.Equal("https://upgraded.se/konsultuppdrag/net-backend-system-arkitekt/", result[0].Url);
+        Assert.Equal(".Net backend/System arkitekt", result[0].Title);
+        Assert.Equal("172122", result[1].AssignmentId);
+        Assert.Equal("https://upgraded.se/konsultuppdrag/projektledare-152/", result[1].Url);
+        Assert.Equal("Projektledare", result[1].Title);
+    }
+
+    [Fact]
+    public async Task ThrowsWhenPageHasNoAssignmentCards()
+    {
+        using var db = _fixture.CreateContext();
+        var service = CreateService("<html><body><p>Lediga uppdrag</p></body></html>");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetAssignmentAnnouncementsAsync(db));
     }
 }
