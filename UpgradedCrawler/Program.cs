@@ -50,6 +50,7 @@ try
             services.AddKeyedScoped<IAssignmentService, TeamPilotAssignmentService>("teampilot");
             services.AddKeyedScoped<IAssignmentService, MissPrymAssignmentService>("missprym");
             services.AddKeyedScoped<IAssignmentService, TechRelationsAssignmentService>("techrelations");
+            services.AddKeyedScoped<IAssignmentService, SenterpriseAssignmentService>("senterprise");
             services.AddScoped<ILogging>(_ => new Logging(logToEventLog));
             services.AddScoped<IEmailService, MailgunService>();
             services.AddDbContext<AppDbContext>(options =>
@@ -63,6 +64,7 @@ try
             services.AddHttpClient<IAssignmentService, TeamPilotAssignmentService>();
             services.AddHttpClient<IAssignmentService, MissPrymAssignmentService>();
             services.AddHttpClient<IAssignmentService, TechRelationsAssignmentService>();
+            services.AddHttpClient<IAssignmentService, SenterpriseAssignmentService>();
 
             services.Configure<MailgunOptions>(context.Configuration.GetSection("mailgun"));
             services.Configure<MissPrymOptions>(context.Configuration.GetSection("MissPrym"));
